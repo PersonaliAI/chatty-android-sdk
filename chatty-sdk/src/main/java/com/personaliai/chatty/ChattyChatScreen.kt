@@ -302,7 +302,7 @@ fun ChattyChatScreen(
             }
             AnimatedVisibility(visible = showAttachMenu, enter = fadeIn() + scaleIn(initialScale = 0.85f) + expandVertically(), exit = fadeOut() + scaleOut(targetScale = 0.85f) + shrinkVertically()) {
                 AttachMenu(
-                    onCamera = { showAttachMenu = false; cameraLauncher.launch() },
+                    onCamera = { showAttachMenu = false; cameraLauncher.launch(null) },
                     onPhotoLibrary = { showAttachMenu = false; imagePicker.launch("image/*") },
                 )
             }
