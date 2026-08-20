@@ -7,7 +7,7 @@ welcome.
 ## Development setup
 
 ```bash
-git clone https://github.com/Damayantha/chatty-android-sdk.git
+git clone https://github.com/PersonaliAI/chatty-android-sdk.git
 cd chatty-android-sdk
 ./gradlew build
 ```

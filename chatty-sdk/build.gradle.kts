@@ -66,7 +66,7 @@ mavenPublishing {
     pom {
         name.set("Chatty Android SDK")
         description.set("Official Android SDK for Chatty AI chatbots — Kotlin + Jetpack Compose")
-        url.set("https://github.com/Damayantha/chatty-android-sdk")
+        url.set("https://github.com/PersonaliAI/chatty-android-sdk")
 
         licenses {
             license {
@@ -82,9 +82,9 @@ mavenPublishing {
             }
         }
         scm {
-            connection.set("scm:git:git://github.com/Damayantha/chatty-android-sdk.git")
-            developerConnection.set("scm:git:ssh://github.com/Damayantha/chatty-android-sdk.git")
-            url.set("https://github.com/Damayantha/chatty-android-sdk")
+            connection.set("scm:git:git://github.com/PersonaliAI/chatty-android-sdk.git")
+            developerConnection.set("scm:git:ssh://github.com/PersonaliAI/chatty-android-sdk.git")
+            url.set("https://github.com/PersonaliAI/chatty-android-sdk")
         }
     }
 }

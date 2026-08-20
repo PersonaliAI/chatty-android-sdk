@@ -7,8 +7,8 @@ same `/api/widget/*` backend as the Chatty web widget and renders every message,
 composer with real Compose UI — so it's fast, themeable, and behaves like the rest of your app
 instead of an embedded browser.
 
-[![CI](https://github.com/Damayantha/chatty-android-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Damayantha/chatty-android-sdk/actions/workflows/ci.yml)
-[![Release](https://jitpack.io/v/Damayantha/chatty-android-sdk.svg)](https://jitpack.io/#Damayantha/chatty-android-sdk)
+[![CI](https://github.com/PersonaliAI/chatty-android-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/PersonaliAI/chatty-android-sdk/actions/workflows/ci.yml)
+[![Release](https://jitpack.io/v/PersonaliAI/chatty-android-sdk.svg)](https://jitpack.io/#PersonaliAI/chatty-android-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![minSdk 24](https://img.shields.io/badge/minSdk-24-brightgreen.svg)](#requirements)
 
@@ -42,8 +42,10 @@ instead of an embedded browser.
 > **Using `v1.0.2` or later.** The `1.0.0`/`1.0.1` tags predate a JitPack build fix and never
 > compiled anywhere — `mavenPublishing {}` unconditionally required Sonatype credentials at
 > Gradle configuration time, breaking the build before any Kotlin got compiled, even for a plain
-> `assembleDebug`. Fixed in `v1.0.2`, confirmed via a real successful JitPack build
-> (`jitpack.io/api/builds/com.github.Damayantha/chatty-android-sdk` → `"v1.0.2": "ok"`).
+> `assembleDebug`. Fixed in `v1.0.2`, confirmed via a real successful JitPack build under the
+> repo's former location (`jitpack.io/api/builds/com.github.Damayantha/chatty-android-sdk` →
+> `"v1.0.2": "ok"`). The repo has since moved to the `PersonaliAI` org (coordinates below) — the
+> JitPack badge above reflects the current build status at the new location.
 
 ### Via JitPack (works today, no account needed)
 
@@ -61,7 +63,7 @@ dependencyResolutionManagement {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.Damayantha:chatty-android-sdk:v1.0.2")
+    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.2")
 }
 ```
 
