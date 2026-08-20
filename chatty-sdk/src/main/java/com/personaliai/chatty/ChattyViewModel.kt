@@ -150,11 +150,10 @@ class ChattyViewModel(
                                 createdAt = it.createdAt,
                             )
                         }
-                        val updatedMsgs = it.messages + newMsgs
+                        val updatedMsgs = _state.value.messages + newMsgs
                         persistMessages(updatedMsgs)
-                        it.copy(messages = updatedMsgs, aiPaused = res.aiPaused)
-                    }
-                    newMsgs.forEach { onMessage?.invoke(it) }
+                        _state.update { it.copy(messages = updatedMsgs, aiPaused = res.aiPaused) }
+                        newMsgs.forEach { onMessage?.invoke(it) }
                     } else {
                         _state.update { it.copy(aiPaused = res.aiPaused) }
                     }
