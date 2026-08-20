@@ -1,2 +1,2 @@
-﻿install:
-  - sdk: java
+jdk:
+  - openjdk17

@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "chatty-android-sdk"
 include(":chatty-sdk")
+include(":example-app")
