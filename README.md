@@ -1,59 +1,45 @@
+<div align="center">
+
 # Chatty Android SDK
 
-**Native Jetpack Compose chat UI for [Chatty](https://github.com/PersonaliAI/chatty) — no WebView.**
+**Native Jetpack Compose chat UI for [Chatty](https://github.com/PersonaliAI/chatty) — zero WebView, zero compromise.**
 
-Drop a fully native, on-brand support chat into any Android app. The SDK talks directly to the
-same `/api/widget/*` backend as the Chatty web widget and renders every message, bubble, and
-composer with real Compose UI — so it's fast, themeable, and behaves like the rest of your app
-instead of an embedded browser.
+Drop a fully native, on-brand support chat into any Android app in minutes. Talks directly to
+the same `/api/widget/*` backend as the Chatty web widget, and renders every bubble, avatar, and
+composer with real Compose UI — fast, themeable, and indistinguishable from the rest of your app.
 
 [![CI](https://github.com/PersonaliAI/chatty-android-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/PersonaliAI/chatty-android-sdk/actions/workflows/ci.yml)
 [![Release](https://jitpack.io/v/PersonaliAI/chatty-android-sdk.svg)](https://jitpack.io/#PersonaliAI/chatty-android-sdk)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![minSdk 24](https://img.shields.io/badge/minSdk-24-brightgreen.svg)](#requirements)
+[![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white)](#requirements)
+[![Stars](https://img.shields.io/github/stars/PersonaliAI/chatty-android-sdk?style=social)](https://github.com/PersonaliAI/chatty-android-sdk/stargazers)
+
+[Install](#install) · [Quick start](#quick-start) · [Design gallery](#design-gallery) · [API reference](#api-reference) · [Example app](#example-app)
+
+</div>
 
 ---
 
-## Contents
-
-- [Why this SDK](#why-this-sdk)
-- [Install](#install)
-- [Quick start](#quick-start)
-- [Design parity](#design-parity)
-- [API reference](#api-reference)
-- [Example app](#example-app)
-- [Requirements](#requirements)
-- [Contributing](#contributing)
-- [License](#license)
-
 ## Why this SDK
 
-- **No WebView.** Every bubble, avatar, and the composer are real `@Composable`s — no iframe,
-  no JS bridge, no WebView memory overhead.
-- **Matches your dashboard design automatically.** Whatever one of the 10 Chatty widget designs
-  is selected for the bot, the SDK fetches the theme and renders with matching colors and corner
-  radii — no manual styling needed. See [Design parity](#design-parity).
-- **Two integration shapes.** A floating [`ChattyLauncher`](#chattylauncher) bubble + dialog, or
-  an embedded [`ChattyChatScreen`](#chattychatscreen) you place directly in your own layout.
-- **Small dependency footprint.** OkHttp, Coil, and Jetpack Compose Material3 — nothing else.
+| | |
+|---|---|
+| **No WebView, anywhere** | Every bubble, avatar, and the composer are real `@Composable`s — no iframe, no JS bridge, no WebView memory overhead. |
+| **Matches your dashboard automatically** | Fetches the bot's theme and renders with the exact colors, corner radii, and launcher shape chosen in the dashboard — no manual styling. |
+| **Two integration shapes** | A floating [`ChattyLauncher`](#chattylauncher) bubble + dialog, or an embedded [`ChattyChatScreen`](#chattychatscreen) inside your own layout. |
+| **A real composer, not a stub** | Emoji picker, animated attach menu (camera + gallery), and mic-to-text voice notes — built in, not bolted on. |
+| **Small dependency footprint** | OkHttp, Coil, and Jetpack Compose Material3. Nothing else. |
 
 ## Install
 
-> **Using `v1.0.6` or later.** `v1.0.0`/`v1.0.1` never compiled at all (a Gradle configuration
-> bug), and `v1.0.2` — while it built — predates the fixes that made the SDK, the example app,
-> and CI itself actually compile cleanly (see the repo's commit history around the
-> `PersonaliAI` org transfer for specifics: a broken coroutine block, missing dependencies, an
-> API-level mismatch, and a missing CI heap size). `v1.0.3` was the first tag verified green
-> end-to-end; `v1.0.4` added structural UI parity with the web widget (header/bubble/composer
-> sizing, avatars, send-button variants) and corrected stale security docs; `v1.0.5` added the
-> header action buttons (voice call/notifications/clear chat), emoji picker, animated attach
-> menu, mic recording + transcription, and dashboard-driven launcher shape/logo color; `v1.0.6`
-> fixes real device-testing feedback on `v1.0.5` — a redundant double header, undersized
-> text/touch-targets, invisible popovers, and a dead notification button — see the
-> [Release](https://github.com/PersonaliAI/chatty-android-sdk/releases) page for the build
-> artifacts.
+> [!NOTE]
+> **Use `v1.0.6` or later.** `v1.0.0`–`v1.0.2` predate fixes that were needed for the SDK, the
+> example app, and CI to actually build cleanly. Full history in the
+> [releases](https://github.com/PersonaliAI/chatty-android-sdk/releases) — every tag from
+> `v1.0.3` onward is CI-verified green before it ships.
 
-### Via JitPack (works today, no account needed)
+### Via JitPack — works today, no account needed
 
 ```kotlin
 // settings.gradle.kts
@@ -73,7 +59,10 @@ dependencies {
 }
 ```
 
-### Via Maven Central
+<details>
+<summary><strong>Via Maven Central</strong> (configured, publish pending Sonatype verification)</summary>
+
+<br>
 
 Publishing is fully wired up (`com.vanniktech.maven.publish`, see
 [`chatty-sdk/build.gradle.kts`](chatty-sdk/build.gradle.kts), and the tag-triggered
@@ -86,7 +75,12 @@ dependencies {
 }
 ```
 
-### As a local module (building from source)
+</details>
+
+<details>
+<summary><strong>As a local module</strong> (building from source)</summary>
+
+<br>
 
 ```kotlin
 // settings.gradle.kts
@@ -101,14 +95,14 @@ dependencies {
 }
 ```
 
+</details>
+
 ## Quick start
 
 Find your bot ID in the Chatty dashboard under **Embed & Integrate → Android SDK**.
 
-### Floating launcher (recommended)
-
-A bubble that expands into a full-screen chat dialog — the native equivalent of the web widget's
-launcher button.
+**Floating launcher** *(recommended)* — a bubble that expands into a full-screen chat dialog, the
+native equivalent of the web widget's launcher button:
 
 ```kotlin
 @Composable
@@ -120,9 +114,7 @@ fun AppRoot() {
 }
 ```
 
-### Embedded full-screen chat
-
-Place the chat directly in your own navigation — e.g. as a "Support" tab or screen.
+**Embedded full-screen chat** — place it directly in your own navigation, e.g. as a "Support" tab:
 
 ```kotlin
 @Composable
@@ -131,19 +123,29 @@ fun SupportScreen() {
 }
 ```
 
-## Design parity
+## Design gallery
 
 The SDK ships all 10 Chatty widget designs as Compose color/radius tokens, ported 1:1 from the
-web widget's `globals.css`, so a native screen looks like the design chosen in the dashboard
-rather than one generic look:
+web widget's `globals.css`, so a native screen looks like whatever design is chosen in the
+dashboard rather than one generic look. No configuration required — the SDK fetches the bot's
+theme and resolves the matching token set automatically, including legacy `widget_style` IDs
+from older presets.
 
-`minimal` · `playful` · `corporate` · `dark-sleek` · `gradient-glow` · `glassmorphism` ·
-`ecommerce` · `healthcare-calm` · `neubrutalism` · `luxury-editorial`
+| Design | Accent |
+|---|---|
+| `minimal` | ![#1c1a15](https://img.shields.io/badge/%20-1c1a15?style=flat-square&color=1c1a15) |
+| `playful` | ![#ff8a5c](https://img.shields.io/badge/%20-ff8a5c?style=flat-square&color=ff8a5c) |
+| `corporate` | ![#1c2e4a](https://img.shields.io/badge/%20-1c2e4a?style=flat-square&color=1c2e4a) |
+| `dark-sleek` | ![#00e5c7](https://img.shields.io/badge/%20-00e5c7?style=flat-square&color=00e5c7) |
+| `gradient-glow` | ![#a855f7](https://img.shields.io/badge/%20-a855f7?style=flat-square&color=a855f7) |
+| `glassmorphism` | ![#8f6ff0](https://img.shields.io/badge/%20-8f6ff0?style=flat-square&color=8f6ff0) |
+| `ecommerce` | ![#0f9d8c](https://img.shields.io/badge/%20-0f9d8c?style=flat-square&color=0f9d8c) |
+| `healthcare-calm` | ![#6f9c7d](https://img.shields.io/badge/%20-6f9c7d?style=flat-square&color=6f9c7d) |
+| `neubrutalism` | ![#ff3d67](https://img.shields.io/badge/%20-ff3d67?style=flat-square&color=ff3d67) |
+| `luxury-editorial` | ![#161412](https://img.shields.io/badge/%20-161412?style=flat-square&color=161412) |
 
-No configuration is required — `ChattyChatScreen` fetches the bot's theme and resolves the
-matching token set automatically, including legacy `widget_style` IDs from older presets. Font
-pairing (each web design uses a distinct Google Font) is intentionally out of scope for this
-release; color, radius, and header/bubble treatment carry most of a design's identity.
+Font pairing (each web design uses a distinct Google Font) is intentionally out of scope for
+this release; color, radius, and header/bubble treatment carry most of a design's identity.
 
 ## API reference
 
@@ -203,26 +205,50 @@ fun ChattyChatScreen(
 
 ### Notes
 
-- **`bot_id` is not a secret** — it's extractable from any client, web or mobile. Domain
-  restriction (`allowed_domains` in the dashboard) is enforced by the backend as a **rate-limit
-  tier**, not a hard reject: verified web traffic gets 30 msgs/60s per bot+IP, everything else
-  (including all mobile SDK traffic — there's no way for a native app to obtain a "verified"
-  token the way a browser's `Referer` allows) gets throttled to 5 msgs/120s. The `host` param
-  this SDK sends is advisory only and isn't used for access control. If your bot is
-  mobile-primary, leave `allowed_domains` empty to get the normal 30/60s tier instead.
-- **Notification bell.** Tapping it requests the OS notification permission (Android 13+ only —
-  older versions grant it at install time) and then calls `onNotificationBellPress`. That's as
-  far as this SDK goes. Actually *delivering* a push when a reply arrives while the app is
-  backgrounded needs a push provider wired up at the app level — either Firebase Cloud
-  Messaging directly (free, no third party) or a wrapper like OneSignal (adds a dashboard/API
-  for managing sends, at the cost of another vendor). Either way it's the same shape of work:
-  register the device's push token, send it to your own backend, store it against the
-  session/user, and have your backend call FCM/OneSignal's send API when a new assistant/agent
-  message lands for a session that isn't actively polling. None of that exists yet — it's
-  backend work in `chatty-backend`, not something this client SDK can add on its own.
-- **Voice-call button.** Only shown when the bot's dashboard has voice enabled, and only fires
-  `onVoiceCallPress` — this SDK doesn't bundle a voice-call implementation (that's a separate
-  LiveKit integration, out of scope here).
+<details open>
+<summary><strong>Security — <code>bot_id</code> and domain restriction</strong></summary>
+
+<br>
+
+`bot_id` is not a secret — it's extractable from any client, web or mobile. Domain restriction
+(`allowed_domains` in the dashboard) is enforced by the backend as a **rate-limit tier**, not a
+hard reject: verified web traffic gets 30 msgs/60s per bot+IP, everything else (including all
+mobile SDK traffic — there's no way for a native app to obtain a "verified" token the way a
+browser's `Referer` allows) gets throttled to 5 msgs/120s. The `host` param this SDK sends is
+advisory only and isn't used for access control. If your bot is mobile-primary, leave
+`allowed_domains` empty to get the normal 30/60s tier instead.
+
+</details>
+
+<details>
+<summary><strong>Notification bell — what it does and doesn't do</strong></summary>
+
+<br>
+
+Tapping it requests the OS notification permission (Android 13+ only — older versions grant it
+at install time) and then calls `onNotificationBellPress`. That's as far as this SDK goes.
+Actually *delivering* a push when a reply arrives while the app is backgrounded needs a push
+provider wired up at the app level — either Firebase Cloud Messaging directly (free, no third
+party) or a wrapper like OneSignal (adds a dashboard/API for managing sends, at the cost of
+another vendor). Either way it's the same shape of work: register the device's push token, send
+it to your own backend, store it against the session/user, and have your backend call
+FCM/OneSignal's send API when a new assistant/agent message lands for a session that isn't
+actively polling. None of that exists yet — it's backend work in `chatty-backend`, not something
+this client SDK can add on its own.
+
+</details>
+
+<details>
+<summary><strong>Voice-call button</strong></summary>
+
+<br>
+
+Only shown when the bot's dashboard has voice enabled, and only fires `onVoiceCallPress` — this
+SDK doesn't bundle a voice-call implementation (that's a separate LiveKit integration, out of
+scope here).
+
+</details>
+
 - Lead capture and meeting booking happen conversationally (the assistant decides to ask/act) —
   there's no separate REST call to trigger them from the SDK.
 - Polling for human-agent takeover messages runs every 4s while `ChattyChatScreen` is composed,
@@ -261,11 +287,12 @@ embedded full-screen chat against a live demo bot.
   }
   ```
 
-## Contributing
+---
 
-Bug reports, design-parity fixes, and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md)
-for local setup and project structure.
+<div align="center">
 
-## License
+**[Contributing](CONTRIBUTING.md)** — bug reports, design-parity fixes, and PRs are welcome.
 
-[MIT](LICENSE) © PersonaliAI
+Licensed under [MIT](LICENSE) © PersonaliAI
+
+</div>
