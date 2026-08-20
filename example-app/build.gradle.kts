@@ -25,6 +25,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+        // chatty-sdk uses java.time APIs desugared down to its minSdk 24 —
+        // any app depending on it must also opt in, or the AAR metadata
+        // check fails the build. See chatty-sdk/build.gradle.kts.
+        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "1.8"
@@ -32,6 +36,8 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
+
     // In a real consuming app this would be a JitPack/Maven Central
     // coordinate (see the root README) — this example builds against the
     // SDK module directly so it always exercises the exact code in this repo.

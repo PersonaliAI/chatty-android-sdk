@@ -212,6 +212,21 @@ embedded full-screen chat against a live demo bot.
 - `minSdk 24+`
 - Kotlin, Jetpack Compose (Material3)
 - OkHttp, Coil (image loading) — pulled in automatically as transitive dependencies
+- **[Core library desugaring](https://developer.android.com/studio/write/java8-support#library-desugaring)
+  enabled in your app module** — the SDK uses `java.time` APIs desugared down to `minSdk 24`, and
+  the Android Gradle Plugin enforces that any consumer of an AAR built this way opts in too:
+
+  ```kotlin
+  // app/build.gradle.kts
+  android {
+      compileOptions {
+          isCoreLibraryDesugaringEnabled = true
+      }
+  }
+  dependencies {
+      coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
+  }
+  ```
 
 ## Contributing
 
