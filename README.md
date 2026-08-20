@@ -158,7 +158,7 @@ fun ChattyLauncher(
 |---|---|
 | `botId` | **Required.** Your bot's ID from the dashboard. |
 | `baseUrl` | Chatty backend base URL. Defaults to the production API. |
-| `host` | Matches the bot's `allowed_domains` — see [Notes](#notes). |
+| `host` | Advisory only — sent to the backend but not used for access control. See [Notes](#notes). |
 | `position` | Corner the bubble docks to. Default `BOTTOM_END`. |
 | `color` | Overrides the launcher color. Defaults to the active design's accent color. |
 
@@ -180,16 +180,20 @@ fun ChattyChatScreen(
 |---|---|
 | `botId` | **Required.** Your bot's ID from the dashboard. |
 | `baseUrl` | Chatty backend base URL. Defaults to the production API. |
-| `host` | Matches the bot's `allowed_domains` — see [Notes](#notes). |
+| `host` | Advisory only — sent to the backend but not used for access control. See [Notes](#notes). |
 | `hostKey` | Storage key used to namespace the locally persisted conversation. |
 | `modifier` | Standard Compose `Modifier` for sizing/placement. |
 | `onMessage` | Called for every inbound message — useful for unread badges or analytics. |
 
 ### Notes
 
-- If the bot has `allowed_domains` configured in the dashboard, pass a matching `host` — native
-  apps don't send an `Origin`/`Referer` header, so without it requests are rejected with `403`.
-  Leave `allowed_domains` empty for mobile-only bots to skip this entirely.
+- **`bot_id` is not a secret** — it's extractable from any client, web or mobile. Domain
+  restriction (`allowed_domains` in the dashboard) is enforced by the backend as a **rate-limit
+  tier**, not a hard reject: verified web traffic gets 30 msgs/60s per bot+IP, everything else
+  (including all mobile SDK traffic — there's no way for a native app to obtain a "verified"
+  token the way a browser's `Referer` allows) gets throttled to 5 msgs/120s. The `host` param
+  this SDK sends is advisory only and isn't used for access control. If your bot is
+  mobile-primary, leave `allowed_domains` empty to get the normal 30/60s tier instead.
 - Lead capture and meeting booking happen conversationally (the assistant decides to ask/act) —
   there's no separate REST call to trigger them from the SDK.
 - Polling for human-agent takeover messages runs every 4s while `ChattyChatScreen` is composed,

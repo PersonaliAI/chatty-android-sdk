@@ -86,12 +86,22 @@ data class ChattyPollResponse(val messages: List<ChattyPollMessage>, val aiPause
     }
 }
 
-class ChattyRateLimitException : IOException("Chatty: rate limit exceeded (30 messages / 60s per bot+IP)")
-class ChattyDomainNotAllowedException : IOException("Chatty: this app/host is not in the bot's allowed_domains list")
+// The backend can't cryptographically verify a native app's identity the way
+// it verifies a browser's Referer for the web widget, so a bot with
+// allowed_domains configured always rate-limits mobile SDK traffic at the
+// stricter "unverified" tier (5 msgs/120s per bot+IP) rather than the normal
+// tier (30 msgs/60s) — it does NOT reject on a mismatched `host`. The `host`
+// field this client sends is advisory only; the backend doesn't trust it.
+class ChattyRateLimitException : IOException("Chatty: rate limit exceeded — 30 msgs/60s normally, or 5 msgs/120s per bot+IP if allowed_domains is set (mobile traffic always gets this stricter tier)")
+// Kept for forward-compatibility — the current backend never returns 403 for
+// domain/origin reasons on these endpoints, but this stays wired up in case
+// that changes.
+class ChattyDomainNotAllowedException : IOException("Chatty: request rejected (403)")
 
 /**
  * Thin HTTP client for the Chatty widget API (the `/api/widget/` routes). No auth header —
- * bot_id alone identifies the bot, optionally restricted by allowed_domains via `host`.
+ * bot_id alone identifies the bot. bot_id is not a secret (it's extractable from any client);
+ * allowed_domains is enforced via rate-limit tier, not a hard reject — see ChattyRateLimitException.
  */
 class ChattyClient(
     private val botId: String,
