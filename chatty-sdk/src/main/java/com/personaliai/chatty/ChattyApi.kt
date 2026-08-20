@@ -30,6 +30,7 @@ data class ChattyTheme(
     val teaserMessage: String? = null,
     val avatarIcon: String? = null,
     val avatarUrl: String? = null,
+    val voiceEnabled: Boolean = false,
 ) {
     companion object {
         fun fromJson(json: JSONObject): ChattyTheme {
@@ -48,6 +49,7 @@ data class ChattyTheme(
                 teaserMessage = json.optString("teaser_message", null),
                 avatarIcon = json.optString("avatar_icon", null),
                 avatarUrl = json.optString("avatar_url", null),
+                voiceEnabled = json.optBoolean("voice_enabled", false),
             )
         }
     }
@@ -152,6 +154,17 @@ class ChattyClient(
     suspend fun poll(sessionId: String, after: String): ChattyPollResponse {
         val url = "$baseUrl/api/widget/poll?bot_id=$botId&session_id=$sessionId&after=$after"
         return ChattyPollResponse.fromJson(execute(Request.Builder().url(url).get().build()))
+    }
+
+    /** Server-side speech-to-text for the mic button. Accepts wav/mp3/ogg/aac/aiff/flac
+     * (not webm) up to 10MB. Returns the transcribed text, or "" if speech wasn't detected. */
+    suspend fun transcribe(file: File, mimeType: String): String {
+        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("bot_id", botId)
+            .addFormDataPart("file", file.name, file.asRequestBody(mimeType.toMediaType()))
+            .build()
+        val req = Request.Builder().url("$baseUrl/api/widget/transcribe").post(multipart).build()
+        return execute(req).optString("text", "")
     }
 
     suspend fun sendMessageStream(

@@ -1,3 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- For the composer's mic button (voice-note transcription). Requested
+         at runtime before recording — declaring it here just makes it mergeable
+         into consuming apps' manifests. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Camera capture goes through an implicit intent to the system camera
+         app (ActivityResultContracts.TakePicturePreview), so no CAMERA
+         permission is needed here. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- API 30+ package-visibility: without this, resolving the system
+         camera app for TakePicturePreview can silently fail on some OEMs. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
 </manifest>

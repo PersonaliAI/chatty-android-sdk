@@ -122,6 +122,34 @@ fun chattyNormalizeWidgetStyle(raw: String?): String {
     return chattyLegacyStyleMap[id] ?: "minimal"
 }
 
+/** The 2nd colon-segment of `widgetStyle`, e.g. `"minimal:#fff:bubble"` -> `"#fff"` — overrides
+ * the header/bubble avatar circle's background when a real logo/avatar image isn't shown. */
+fun chattyLogoBgColor(raw: String?): Color? {
+    val parts = raw?.split(":") ?: return null
+    if (parts.size < 2) return null
+    val hex = parts[1].trim()
+    if (hex.isEmpty()) return null
+    return try { c(if (hex.startsWith("#")) hex else "#$hex") } catch (_: IllegalArgumentException) { null }
+}
+
+/** The 3rd colon-segment of `widgetStyle` controls the launcher button's corner shape:
+ * `square` -> 0dp corners, `rounded` -> 12dp corners, `bubble` -> an asymmetric "speech
+ * tail" corner, anything else (including absent) -> a full circle, matching widget.js. */
+fun chattyLauncherShape(raw: String?, position: ChattyPosition): RoundedCornerShape {
+    val parts = raw?.split(":") ?: emptyList()
+    val shapeId = parts.getOrNull(2)?.trim()
+    return when (shapeId) {
+        "square" -> RoundedCornerShape(0.dp)
+        "rounded" -> RoundedCornerShape(12.dp)
+        "bubble" -> if (position == ChattyPosition.BOTTOM_END) {
+            RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomEnd = 30.dp, bottomStart = 4.dp)
+        } else {
+            RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomEnd = 4.dp, bottomStart = 30.dp)
+        }
+        else -> RoundedCornerShape(50) // circle
+    }
+}
+
 /**
  * Message bubble shape with the corner nearest the avatar squared off,
  * matching web's `.rounded-tl-none` (bot) / `.rounded-tr-none` (user) — the

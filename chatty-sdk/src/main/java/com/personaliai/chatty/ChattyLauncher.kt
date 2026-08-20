@@ -36,11 +36,13 @@ fun ChattyLauncher(
     var open by remember { mutableStateOf(false) }
     var unread by remember { mutableStateOf(0) }
     var designId by remember { mutableStateOf("minimal") }
+    var rawWidgetStyle by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(botId) {
         try {
             val theme = ChattyClient(botId, baseUrl, host).getTheme()
             designId = chattyNormalizeWidgetStyle(theme.widgetStyle)
+            rawWidgetStyle = theme.widgetStyle
         } catch (_: Exception) {
             // keep the fallback design — a failed theme fetch shouldn't block the button from rendering
         }
@@ -48,14 +50,15 @@ fun ChattyLauncher(
     val tokens = chattyDesignTokens[designId] ?: chattyDesignTokens.getValue("minimal")
     val resolvedColor = color ?: tokens.launcherBg
     val isGradient = color == null && designId == "gradient-glow"
+    val launcherShape = chattyLauncherShape(rawWidgetStyle, position)
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.align(position.alignment).padding(20.dp)) {
             Box(
                 Modifier
                     .size(60.dp)
-                    .shadow(elevation = 10.dp, shape = CircleShape, ambientColor = tokens.launcherShadow, spotColor = tokens.launcherShadow)
-                    .clip(CircleShape)
+                    .shadow(elevation = 10.dp, shape = launcherShape, ambientColor = tokens.launcherShadow, spotColor = tokens.launcherShadow)
+                    .clip(launcherShape)
                     .then(
                         if (isGradient) Modifier.background(Brush.linearGradient(ChattyGradientGlowHeaderColors))
                         else Modifier.background(resolvedColor)

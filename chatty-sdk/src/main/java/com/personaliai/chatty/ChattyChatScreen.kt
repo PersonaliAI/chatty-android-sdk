@@ -1,16 +1,31 @@
 package com.personaliai.chatty
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.media.MediaRecorder
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,9 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.ClickableText
@@ -40,10 +57,18 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
@@ -53,11 +78,14 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
+import java.io.File
 
 /**
- * Full Chatty chat screen: header, message list, conversation starters, typing
- * indicator, and composer. Equivalent to the web widget's embed iframe content —
- * sizing/spacing/structure below is ported 1:1 from EmbedClient.tsx + globals.css.
+ * Full Chatty chat screen: header (with voice/notification/clear-chat actions),
+ * message list, conversation starters, typing indicator, and composer (emoji
+ * picker, attach menu, mic recording). Equivalent to the web widget's embed
+ * iframe content — sizing/spacing/structure below is ported 1:1 from
+ * EmbedClient.tsx + globals.css + widget.js.
  */
 @Composable
 fun ChattyChatScreen(
@@ -67,6 +95,14 @@ fun ChattyChatScreen(
     hostKey: String = "app",
     modifier: Modifier = Modifier,
     onMessage: ((ChattyMessage) -> Unit)? = null,
+    /** Called when the header's voice-call button is tapped (only shown when the bot's
+     * dashboard has voice enabled). This SDK doesn't bundle a voice-call implementation
+     * (that's a separate LiveKit integration) — wire this up if your app has one. */
+    onVoiceCallPress: (() -> Unit)? = null,
+    /** Called when the header's notification-bell button is tapped. Native apps manage
+     * push notifications through their own infrastructure (FCM/APNs), so this SDK doesn't
+     * subscribe to anything itself — wire this up to your app's own notification opt-in. */
+    onNotificationBellPress: (() -> Unit)? = null,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel: ChattyViewModel = viewModel(
@@ -90,16 +126,79 @@ fun ChattyChatScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
+    var showEmojiPicker by remember { mutableStateOf(false) }
+    var showAttachMenu by remember { mutableStateOf(false) }
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingSeconds by remember { mutableStateOf(0) }
+    var mediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var recordingFile by remember { mutableStateOf<File?>(null) }
+
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
-            val tempFile = java.io.File(context.cacheDir, "upload_image.tmp")
+            val tempFile = File(context.cacheDir, "upload_image_${System.currentTimeMillis()}.tmp")
             context.contentResolver.openInputStream(uri)?.use { input ->
-                tempFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
+                tempFile.outputStream().use { output -> input.copyTo(output) }
             }
             viewModel.sendImage(tempFile, mimeType, "")
+        }
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            val tempFile = File(context.cacheDir, "camera_${System.currentTimeMillis()}.jpg")
+            tempFile.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+            viewModel.sendImage(tempFile, "image/jpeg", "")
+        }
+    }
+
+    fun startRecording() {
+        val file = File(context.cacheDir, "voice_note_${System.currentTimeMillis()}.m4a")
+        val recorder = if (android.os.Build.VERSION.SDK_INT >= 31) MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()
+        try {
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setOutputFile(file.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            mediaRecorder = recorder
+            recordingFile = file
+            recordingSeconds = 0
+            isRecording = true
+        } catch (_: Exception) {
+            // mic busy/unavailable — silently no-op rather than crash the composer
+        }
+    }
+
+    fun stopRecordingAndTranscribe() {
+        isRecording = false
+        val recorder = mediaRecorder
+        val file = recordingFile
+        mediaRecorder = null
+        recordingFile = null
+        if (recorder == null || file == null) return
+        try {
+            recorder.stop()
+        } catch (_: Exception) {
+            // too-short recording etc — just skip transcription
+        } finally {
+            recorder.release()
+        }
+        if (recordingSeconds >= 1) {
+            viewModel.transcribeVoiceNote(file, "audio/mp4") { text ->
+                if (!text.isNullOrBlank()) input = if (input.isBlank()) text else "$input $text"
+            }
+        }
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startRecording()
+    }
+
+    LaunchedEffect(isRecording) {
+        while (isRecording) {
+            delay(1000)
+            recordingSeconds++
         }
     }
 
@@ -125,8 +224,9 @@ fun ChattyChatScreen(
         }
         Row(headerModifier, verticalAlignment = Alignment.CenterVertically) {
             // 44dp avatar circle (web: size-11), logo image at 34dp if set, else an icon at 24dp.
+            val logoBg = chattyLogoBgColor(state.theme?.widgetStyle) ?: t.headerText.copy(alpha = 0.08f)
             Box(
-                Modifier.size(44.dp).clip(CircleShape).background(t.headerText.copy(alpha = 0.08f)),
+                Modifier.size(44.dp).clip(CircleShape).background(logoBg),
                 contentAlignment = Alignment.Center,
             ) {
                 val logoUrl = state.theme?.logoUrl
@@ -142,7 +242,7 @@ fun ChattyChatScreen(
                 }
             }
             Spacer(Modifier.width(10.dp))
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text(
                     state.theme?.name ?: "Chatty Assistant",
                     color = t.headerText,
@@ -156,6 +256,12 @@ fun ChattyChatScreen(
                     Text("Online · replies instantly", color = t.headerText.copy(alpha = 0.7f), fontSize = 9.sp)
                 }
             }
+            // Header action buttons — voice call (if enabled), notification bell, clear chat.
+            if (state.theme?.voiceEnabled == true) {
+                HeaderIconButton(Icons.Filled.Call, "Voice call", t.headerText) { onVoiceCallPress?.invoke() }
+            }
+            HeaderIconButton(Icons.Filled.Notifications, "Notifications", t.headerText) { onNotificationBellPress?.invoke() }
+            HeaderIconButton(Icons.Filled.RestartAlt, "Clear chat", t.headerText) { viewModel.clearChat() }
         }
 
         LazyColumn(
@@ -181,7 +287,7 @@ fun ChattyChatScreen(
         state.error?.let { Banner(it, Color(0xFFFEE2E2)) }
 
         // Composer: bordered rounded-2xl bar with the text field on top and an
-        // icon row (attach + send) below, matching .chat-input-bar on web.
+        // icon row (emoji + attach + mic + send) below, matching .chat-input-bar on web.
         Column(
             Modifier
                 .fillMaxWidth()
@@ -191,29 +297,67 @@ fun ChattyChatScreen(
                 .border(1.dp, t.headerText.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
                 .padding(12.dp, 10.dp, 12.dp, 6.dp),
         ) {
-            TextField(
-                value = input,
-                onValueChange = { input = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Type a message…", fontSize = 12.sp) },
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = t.botBubbleText),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                maxLines = 4,
-            )
+            AnimatedVisibility(visible = showEmojiPicker, enter = fadeIn() + scaleIn(initialScale = 0.85f) + expandVertically(), exit = fadeOut() + scaleOut(targetScale = 0.85f) + shrinkVertically()) {
+                EmojiPicker(onPick = { emoji -> input += emoji })
+            }
+            AnimatedVisibility(visible = showAttachMenu, enter = fadeIn() + scaleIn(initialScale = 0.85f) + expandVertically(), exit = fadeOut() + scaleOut(targetScale = 0.85f) + shrinkVertically()) {
+                AttachMenu(
+                    onCamera = { showAttachMenu = false; cameraLauncher.launch() },
+                    onPhotoLibrary = { showAttachMenu = false; imagePicker.launch("image/*") },
+                )
+            }
+
+            if (isRecording) {
+                RecordingIndicator(seconds = recordingSeconds, onStop = { stopRecordingAndTranscribe() })
+            } else {
+                TextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Type a message…", fontSize = 12.sp) },
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = t.botBubbleText),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent,
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    maxLines = 4,
+                )
+            }
+
             Row(
                 Modifier.fillMaxWidth().padding(top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                IconButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.AttachFile, contentDescription = "Attach image", tint = Color(0xFF9CA3AF), modifier = Modifier.size(18.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    IconButton(onClick = { showEmojiPicker = !showEmojiPicker; showAttachMenu = false }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.EmojiEmotions, contentDescription = "Emoji", tint = Color(0xFF9CA3AF), modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = { showAttachMenu = !showAttachMenu; showEmojiPicker = false }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.AttachFile, contentDescription = "Attach", tint = Color(0xFF9CA3AF), modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(
+                        onClick = {
+                            if (isRecording) {
+                                stopRecordingAndTranscribe()
+                            } else {
+                                val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                                if (granted) startRecording() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            if (isRecording) Icons.Filled.Stop else Icons.Filled.Mic,
+                            contentDescription = if (isRecording) "Stop recording" else "Record voice note",
+                            tint = if (isRecording) Color(0xFFEF4444) else Color(0xFF9CA3AF),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
                 ChattySendButton(
                     style = state.theme?.sendButtonStyle,
@@ -224,6 +368,8 @@ fun ChattyChatScreen(
                         if (input.isNotBlank()) {
                             viewModel.sendText(input)
                             input = ""
+                            showEmojiPicker = false
+                            showAttachMenu = false
                         }
                     },
                 )
@@ -238,6 +384,84 @@ private fun chattyAvatarIconVector(avatarIcon: String?): ImageVector = when (ava
     "message" -> Icons.Filled.ChatBubble
     "user" -> Icons.Filled.Person
     else -> Icons.Filled.SmartToy // "logo" (no logoUrl), "bot", "custom" (no avatarUrl), or null
+}
+
+@Composable
+private fun HeaderIconButton(icon: ImageVector, description: String, tint: Color, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(28.dp)) {
+        Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(16.dp))
+    }
+}
+
+private val CHATTY_EMOJIS = listOf(
+    "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🙂", "🙃", "😉", "😊", "😇",
+    "🥰", "😍", "🤩", "😘", "😋", "😛", "🤪", "😜", "🤔", "🤨", "😐", "😑",
+    "😶", "🙄", "😏", "😒", "😬", "🙁", "😢", "😭", "😤", "😡", "🥳", "😴",
+    "🤗", "🤝", "👍", "👎", "👏", "🙌", "🙏", "💪", "👋", "✌️", "🤞", "❤️",
+    "🔥", "✨", "🎉", "🎊", "⭐", "💯", "✅", "❌", "❓", "❗", "💬", "👀",
+)
+
+@Composable
+private fun EmojiPicker(onPick: (String) -> Unit) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(8),
+        modifier = Modifier.fillMaxWidth().height(160.dp),
+        contentPadding = PaddingValues(vertical = 4.dp),
+    ) {
+        items(CHATTY_EMOJIS) { emoji ->
+            Box(
+                Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).clickable { onPick(emoji) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(emoji, fontSize = 18.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttachMenu(onCamera: () -> Unit, onPhotoLibrary: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AttachMenuOption(Icons.Filled.PhotoCamera, "Camera", onCamera, Modifier.weight(1f))
+        AttachMenuOption(Icons.Filled.PhotoLibrary, "Photo Library", onPhotoLibrary, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun AttachMenuOption(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF3F4F6))
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, contentDescription = label, tint = Color(0xFF4B5563), modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(4.dp))
+        Text(label, fontSize = 11.sp, color = Color(0xFF4B5563))
+    }
+}
+
+@Composable
+private fun RecordingIndicator(seconds: Int, onStop: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ChattyPulsingDot(color = Color(0xFFEF4444), size = 8.dp)
+            Spacer(Modifier.width(8.dp))
+            val m = seconds / 60
+            val s = seconds % 60
+            Text("Recording… %d:%02d".format(m, s), fontSize = 12.sp, color = Color(0xFF6B7280))
+        }
+        TextButton(onClick = onStop) { Text("Stop", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+    }
 }
 
 @Composable

@@ -234,6 +234,33 @@ class ChattyViewModel(
         }
     }
 
+    /** Clears the local conversation and starts a fresh session — the native equivalent
+     * of web's header "clear chat" button. */
+    fun clearChat() {
+        sessionId = ChattySession.newSession(getApplication<Application>(), botId, hostKey)
+        val welcome = _state.value.theme?.welcomeMessage?.let {
+            listOf(ChattyMessage(id = "welcome", role = ChattyRole.ASSISTANT, text = it))
+        } ?: emptyList()
+        _state.update { it.copy(messages = welcome, aiPaused = false, error = null) }
+        persistMessages(welcome)
+        lastPollAt = Instant.now().toString()
+    }
+
+    /** Uploads a recorded voice note for server-side transcription (mic button). Result is
+     * delivered via [onResult] rather than a suspend return so the caller doesn't need its
+     * own coroutine scope; errors are swallowed to null since a failed transcription
+     * shouldn't surface as a chat error banner. */
+    fun transcribeVoiceNote(file: File, mimeType: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            val text = try {
+                client.transcribe(file, mimeType).takeIf { it.isNotBlank() }
+            } catch (_: Exception) {
+                null
+            }
+            onResult(text)
+        }
+    }
+
     fun sendImage(file: File, mimeType: String, caption: String = "") {
         val sid = sessionId ?: return
         val newMsgs = _state.value.messages + ChattyMessage(role = ChattyRole.USER, text = caption, fileUrl = file.absolutePath)
