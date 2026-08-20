@@ -17,7 +17,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
-const val CHATTY_DEFAULT_BASE_URL = "https://personaliai-api-376030619262.us-central1.run.app"
+const val CHATTY_DEFAULT_BASE_URL = "https://api.chatty.personaliai.com"
 
 data class ChattyTheme(
     val name: String? = null,
@@ -142,6 +142,49 @@ class ChattyClient(
     suspend fun poll(sessionId: String, after: String): ChattyPollResponse {
         val url = "$baseUrl/api/widget/poll?bot_id=$botId&session_id=$sessionId&after=$after"
         return ChattyPollResponse.fromJson(execute(Request.Builder().url(url).get().build()))
+    }
+
+    suspend fun sendMessageStream(
+        sessionId: String,
+        text: String,
+        visitorTimezone: String = "UTC",
+        onToken: (String) -> Unit
+    ) {
+        val body = JSONObject().apply {
+            put("bot_id", botId)
+            put("session_id", sessionId)
+            put("text", text)
+            put("visitor_timezone", visitorTimezone)
+            host?.let { put("host", it) }
+        }.toString().toRequestBody("application/json".toMediaType())
+
+        val req = Request.Builder().url("$baseUrl/api/widget/chat/stream").post(body).build()
+        val response = client.newCall(req).execute()
+        if (!response.isSuccessful) {
+            when (response.code) {
+                429 -> throw ChattyRateLimitException()
+                403 -> throw ChattyDomainNotAllowedException()
+                else -> throw IOException("Chatty stream request failed: ${response.code}")
+            }
+        }
+
+        response.body?.source()?.let { source ->
+            while (true) {
+                val line = source.readUtf8Line() ?: break
+                if (line.startsWith("data: ")) {
+                    val data = line.substring(6).trim()
+                    if (data.isEmpty()) continue
+                    val json = JSONObject(data)
+                    if (json.optBoolean("done", false)) {
+                        break
+                    }
+                    val token = json.optString("token", "")
+                    if (token.isNotEmpty()) {
+                        onToken(token)
+                    }
+                }
+            }
+        }
     }
 
     private suspend fun execute(request: Request): JSONObject = suspendCoroutine { cont ->

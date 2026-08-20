@@ -18,7 +18,9 @@ import androidx.compose.ui.window.DialogProperties
 
 /**
  * Floating launcher button + full-screen dialog chat panel — the native-SDK
- * equivalent of widget.js's launcher button + iframe panel.
+ * equivalent of widget.js's launcher button + iframe panel. The button color
+ * follows the selected design's own accent (same as web's LAUNCHER_STYLES)
+ * unless [color] is explicitly passed, which always wins.
  */
 @Composable
 fun ChattyLauncher(
@@ -26,16 +28,28 @@ fun ChattyLauncher(
     baseUrl: String = CHATTY_DEFAULT_BASE_URL,
     host: String? = null,
     position: ChattyPosition = ChattyPosition.BOTTOM_END,
-    color: Color = Color(0xFFF97316),
+    color: Color? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     var unread by remember { mutableStateOf(0) }
+    var designAccent by remember { mutableStateOf(Color(0xFFF97316)) }
+
+    LaunchedEffect(botId) {
+        try {
+            val theme = ChattyClient(botId, baseUrl, host).getTheme()
+            val designId = chattyNormalizeWidgetStyle(theme.widgetStyle)
+            designAccent = (chattyDesignTokens[designId] ?: chattyDesignTokens.getValue("minimal")).userBubbleBg
+        } catch (_: Exception) {
+            // keep the fallback accent — a failed theme fetch shouldn't block the button from rendering
+        }
+    }
+    val resolvedColor = color ?: designAccent
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.align(position.alignment).padding(20.dp)) {
             FloatingActionButton(
                 onClick = { open = true; unread = 0 },
-                containerColor = color,
+                containerColor = resolvedColor,
                 shape = CircleShape,
             ) {
                 Text("💬", fontSize = 22.sp)
