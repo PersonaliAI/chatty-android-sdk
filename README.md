@@ -155,6 +155,8 @@ fun ChattyLauncher(
     host: String? = null,
     position: ChattyPosition = ChattyPosition.BOTTOM_END,
     color: Color? = null,
+    onVoiceCallPress: (() -> Unit)? = null,
+    onNotificationBellPress: (() -> Unit)? = null,
 )
 ```
 
@@ -165,6 +167,8 @@ fun ChattyLauncher(
 | `host` | Advisory only — sent to the backend but not used for access control. See [Notes](#notes). |
 | `position` | Corner the bubble docks to. Default `BOTTOM_END`. |
 | `color` | Overrides the launcher color. Defaults to the active design's accent color. |
+| `onVoiceCallPress` | Forwarded to `ChattyChatScreen`'s header voice-call button. See [Notes](#notes). |
+| `onNotificationBellPress` | Forwarded to `ChattyChatScreen`'s header notification bell. See [Notes](#notes). |
 
 ### `ChattyChatScreen`
 
@@ -177,6 +181,9 @@ fun ChattyChatScreen(
     hostKey: String = "app",
     modifier: Modifier = Modifier,
     onMessage: ((ChattyMessage) -> Unit)? = null,
+    onVoiceCallPress: (() -> Unit)? = null,
+    onNotificationBellPress: (() -> Unit)? = null,
+    onClose: (() -> Unit)? = null,
 )
 ```
 
@@ -188,6 +195,9 @@ fun ChattyChatScreen(
 | `hostKey` | Storage key used to namespace the locally persisted conversation. |
 | `modifier` | Standard Compose `Modifier` for sizing/placement. |
 | `onMessage` | Called for every inbound message — useful for unread badges or analytics. |
+| `onVoiceCallPress` | Header voice-call button tapped. Only shown when the bot's dashboard has voice enabled. See [Notes](#notes). |
+| `onNotificationBellPress` | Header notification-bell button tapped, after the OS permission prompt resolves. See [Notes](#notes). |
+| `onClose` | Renders a close (✕) button in the header when set. `ChattyLauncher` passes this for you; set it yourself only if you're embedding `ChattyChatScreen` directly inside your own dialog/sheet. |
 
 ### Notes
 
@@ -198,6 +208,19 @@ fun ChattyChatScreen(
   token the way a browser's `Referer` allows) gets throttled to 5 msgs/120s. The `host` param
   this SDK sends is advisory only and isn't used for access control. If your bot is
   mobile-primary, leave `allowed_domains` empty to get the normal 30/60s tier instead.
+- **Notification bell.** Tapping it requests the OS notification permission (Android 13+ only —
+  older versions grant it at install time) and then calls `onNotificationBellPress`. That's as
+  far as this SDK goes. Actually *delivering* a push when a reply arrives while the app is
+  backgrounded needs a push provider wired up at the app level — either Firebase Cloud
+  Messaging directly (free, no third party) or a wrapper like OneSignal (adds a dashboard/API
+  for managing sends, at the cost of another vendor). Either way it's the same shape of work:
+  register the device's push token, send it to your own backend, store it against the
+  session/user, and have your backend call FCM/OneSignal's send API when a new assistant/agent
+  message lands for a session that isn't actively polling. None of that exists yet — it's
+  backend work in `chatty-backend`, not something this client SDK can add on its own.
+- **Voice-call button.** Only shown when the bot's dashboard has voice enabled, and only fires
+  `onVoiceCallPress` — this SDK doesn't bundle a voice-call implementation (that's a separate
+  LiveKit integration, out of scope here).
 - Lead capture and meeting booking happen conversationally (the assistant decides to ask/act) —
   there's no separate REST call to trigger them from the SDK.
 - Polling for human-agent takeover messages runs every 4s while `ChattyChatScreen` is composed,

@@ -36,6 +36,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +60,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
@@ -99,10 +101,16 @@ fun ChattyChatScreen(
      * dashboard has voice enabled). This SDK doesn't bundle a voice-call implementation
      * (that's a separate LiveKit integration) — wire this up if your app has one. */
     onVoiceCallPress: (() -> Unit)? = null,
-    /** Called when the header's notification-bell button is tapped. Native apps manage
-     * push notifications through their own infrastructure (FCM/APNs), so this SDK doesn't
-     * subscribe to anything itself — wire this up to your app's own notification opt-in. */
+    /** Called when the header's notification-bell button is tapped, after the OS
+     * notification-permission prompt (Android 13+) has been resolved either way. Native apps
+     * still need their own push infrastructure (FCM/APNs, or a wrapper like OneSignal) to
+     * actually *deliver* a notification when a reply arrives while the app is backgrounded —
+     * this SDK only handles the local permission ask, not registration/delivery. */
     onNotificationBellPress: (() -> Unit)? = null,
+    /** Renders a close (✕) button in the header when provided — pass this instead of drawing
+     * your own close bar above [ChattyChatScreen] (e.g. in a dialog/sheet wrapper), so there's
+     * one header, not two stacked ones. [ChattyLauncher] already does this for you. */
+    onClose: (() -> Unit)? = null,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel: ChattyViewModel = viewModel(
@@ -195,6 +203,20 @@ fun ChattyChatScreen(
         if (granted) startRecording()
     }
 
+    // Android 13+ requires a runtime prompt for POST_NOTIFICATIONS; older versions grant it
+    // at install time, so there's nothing to ask there.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        onNotificationBellPress?.invoke()
+    }
+    fun onBellPress() {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            if (granted) onNotificationBellPress?.invoke() else notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            onNotificationBellPress?.invoke()
+        }
+    }
+
     LaunchedEffect(isRecording) {
         while (isRecording) {
             delay(1000)
@@ -247,21 +269,26 @@ fun ChattyChatScreen(
                     state.theme?.name ?: "Chatty Assistant",
                     color = t.headerText,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     maxLines = 1,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ChattyPulsingDot(color = Color(0xFF22C55E))
                     Spacer(Modifier.width(4.dp))
-                    Text("Online · replies instantly", color = t.headerText.copy(alpha = 0.7f), fontSize = 9.sp)
+                    Text("Online · replies instantly", color = t.headerText.copy(alpha = 0.7f), fontSize = 10.sp)
                 }
             }
-            // Header action buttons — voice call (if enabled), notification bell, clear chat.
-            if (state.theme?.voiceEnabled == true) {
-                HeaderIconButton(Icons.Filled.Call, "Voice call", t.headerText) { onVoiceCallPress?.invoke() }
+            // Header action buttons — voice call (if enabled), notification bell, clear chat, close.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (state.theme?.voiceEnabled == true) {
+                    HeaderIconButton(Icons.Filled.Call, "Voice call", t.headerText) { onVoiceCallPress?.invoke() }
+                }
+                HeaderIconButton(Icons.Filled.Notifications, "Notifications", t.headerText) { onBellPress() }
+                HeaderIconButton(Icons.Filled.RestartAlt, "Clear chat", t.headerText) { viewModel.clearChat() }
+                if (onClose != null) {
+                    HeaderIconButton(Icons.Filled.Close, "Close", t.headerText, onClose)
+                }
             }
-            HeaderIconButton(Icons.Filled.Notifications, "Notifications", t.headerText) { onNotificationBellPress?.invoke() }
-            HeaderIconButton(Icons.Filled.RestartAlt, "Clear chat", t.headerText) { viewModel.clearChat() }
         }
 
         LazyColumn(
@@ -298,13 +325,17 @@ fun ChattyChatScreen(
                 .padding(12.dp, 10.dp, 12.dp, 6.dp),
         ) {
             AnimatedVisibility(visible = showEmojiPicker, enter = fadeIn() + scaleIn(initialScale = 0.85f) + expandVertically(), exit = fadeOut() + scaleOut(targetScale = 0.85f) + shrinkVertically()) {
-                EmojiPicker(onPick = { emoji -> input += emoji })
+                Box(Modifier.padding(bottom = 8.dp)) {
+                    EmojiPicker(onPick = { emoji -> input += emoji })
+                }
             }
             AnimatedVisibility(visible = showAttachMenu, enter = fadeIn() + scaleIn(initialScale = 0.85f) + expandVertically(), exit = fadeOut() + scaleOut(targetScale = 0.85f) + shrinkVertically()) {
+                Box(Modifier.padding(bottom = 8.dp)) {
                 AttachMenu(
                     onCamera = { showAttachMenu = false; cameraLauncher.launch(null) },
                     onPhotoLibrary = { showAttachMenu = false; imagePicker.launch("image/*") },
                 )
+                }
             }
 
             if (isRecording) {
@@ -314,8 +345,8 @@ fun ChattyChatScreen(
                     value = input,
                     onValueChange = { input = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Type a message…", fontSize = 12.sp) },
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = t.botBubbleText),
+                    placeholder = { Text("Type a message…", fontSize = 13.sp) },
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = t.botBubbleText),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -333,12 +364,12 @@ fun ChattyChatScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    IconButton(onClick = { showEmojiPicker = !showEmojiPicker; showAttachMenu = false }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.EmojiEmotions, contentDescription = "Emoji", tint = Color(0xFF9CA3AF), modifier = Modifier.size(18.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    IconButton(onClick = { showEmojiPicker = !showEmojiPicker; showAttachMenu = false }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.EmojiEmotions, contentDescription = "Emoji", tint = Color(0xFF9CA3AF), modifier = Modifier.size(20.dp))
                     }
-                    IconButton(onClick = { showAttachMenu = !showAttachMenu; showEmojiPicker = false }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.AttachFile, contentDescription = "Attach", tint = Color(0xFF9CA3AF), modifier = Modifier.size(18.dp))
+                    IconButton(onClick = { showAttachMenu = !showAttachMenu; showEmojiPicker = false }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.AttachFile, contentDescription = "Attach", tint = Color(0xFF9CA3AF), modifier = Modifier.size(20.dp))
                     }
                     IconButton(
                         onClick = {
@@ -349,13 +380,13 @@ fun ChattyChatScreen(
                                 if (granted) startRecording() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             }
                         },
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(32.dp),
                     ) {
                         Icon(
                             if (isRecording) Icons.Filled.Stop else Icons.Filled.Mic,
                             contentDescription = if (isRecording) "Stop recording" else "Record voice note",
                             tint = if (isRecording) Color(0xFFEF4444) else Color(0xFF9CA3AF),
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
@@ -388,8 +419,8 @@ private fun chattyAvatarIconVector(avatarIcon: String?): ImageVector = when (ava
 
 @Composable
 private fun HeaderIconButton(icon: ImageVector, description: String, tint: Color, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(28.dp)) {
-        Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(16.dp))
+    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+        Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(19.dp))
     }
 }
 
@@ -405,7 +436,14 @@ private val CHATTY_EMOJIS = listOf(
 private fun EmojiPicker(onPick: (String) -> Unit) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(8),
-        modifier = Modifier.fillMaxWidth().height(160.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(160.dp)
+            .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp), ambientColor = Color(0x40000000), spotColor = Color(0x40000000))
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(16.dp))
+            .padding(6.dp),
         contentPadding = PaddingValues(vertical = 4.dp),
     ) {
         items(CHATTY_EMOJIS) { emoji ->
@@ -422,7 +460,13 @@ private fun EmojiPicker(onPick: (String) -> Unit) {
 @Composable
 private fun AttachMenu(onCamera: () -> Unit, onPhotoLibrary: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp), ambientColor = Color(0x40000000), spotColor = Color(0x40000000))
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(16.dp))
+            .padding(10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         AttachMenuOption(Icons.Filled.PhotoCamera, "Camera", onCamera, Modifier.weight(1f))
@@ -458,9 +502,9 @@ private fun RecordingIndicator(seconds: Int, onStop: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             val m = seconds / 60
             val s = seconds % 60
-            Text("Recording… %d:%02d".format(m, s), fontSize = 12.sp, color = Color(0xFF6B7280))
+            Text("Recording… %d:%02d".format(m, s), fontSize = 13.sp, color = Color(0xFF6B7280))
         }
-        TextButton(onClick = onStop) { Text("Stop", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+        TextButton(onClick = onStop) { Text("Stop", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
     }
 }
 
@@ -511,7 +555,7 @@ private fun ChattySendButton(style: String?, accent: Color, textColor: Color, en
         ) {
             Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Send", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text("Send", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
         "arrowUp" -> ChattyRoundSendButton(Icons.Filled.ArrowUpward, accent, textColor, enabled, onClick)
         "arrowRight" -> ChattyRoundSendButton(Icons.Filled.ArrowForward, accent, textColor, enabled, onClick)
@@ -555,9 +599,9 @@ private fun Bubble(message: ChattyMessage, t: ChattyDesignTokens, avatarIcon: St
                         }
                         if (message.text.isNotEmpty()) {
                             if (isUser) {
-                                Text(message.text, color = t.userBubbleText, fontSize = 12.sp)
+                                Text(message.text, color = t.userBubbleText, fontSize = 13.sp)
                             } else {
-                                MarkdownText(message.text, color = t.botBubbleText, fontSize = 12.sp)
+                                MarkdownText(message.text, color = t.botBubbleText, fontSize = 13.sp)
                             }
                         }
                     }
@@ -612,7 +656,7 @@ private fun FlowStarters(starters: List<String>, accent: Color, onClick: (String
                 border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.35f)),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = accent),
             ) {
-                Text(s, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2)
+                Text(s, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2)
             }
         }
     }
@@ -626,7 +670,7 @@ private fun Banner(text: String, bg: Color) {
 }
 
 @Composable
-fun MarkdownText(text: String, modifier: Modifier = Modifier, color: Color = Color(0xFF111827), fontSize: TextUnit = 12.sp) {
+fun MarkdownText(text: String, modifier: Modifier = Modifier, color: Color = Color(0xFF111827), fontSize: TextUnit = 13.sp) {
     val uriHandler = LocalUriHandler.current
     val annotatedString = buildAnnotatedString {
         val lines = text.split("\n")

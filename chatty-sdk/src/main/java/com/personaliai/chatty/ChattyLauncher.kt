@@ -32,6 +32,10 @@ fun ChattyLauncher(
     host: String? = null,
     position: ChattyPosition = ChattyPosition.BOTTOM_END,
     color: Color? = null,
+    /** Forwarded to [ChattyChatScreen]'s onVoiceCallPress — see its doc for details. */
+    onVoiceCallPress: (() -> Unit)? = null,
+    /** Forwarded to [ChattyChatScreen]'s onNotificationBellPress — see its doc for details. */
+    onNotificationBellPress: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     var unread by remember { mutableStateOf(0) }
@@ -87,24 +91,21 @@ fun ChattyLauncher(
 
     if (open) {
         Dialog(onDismissRequest = { open = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Box(Modifier.fillMaxSize().background(Color.White)) {
-                Column(Modifier.fillMaxSize()) {
-                    Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.CenterEnd) {
-                        Text(
-                            "✕",
-                            modifier = Modifier.padding(8.dp).clickable { open = false },
-                            color = Color(0xFF6B7280),
-                            fontSize = 18.sp,
-                        )
-                    }
-                    ChattyChatScreen(
-                        botId = botId,
-                        baseUrl = baseUrl,
-                        host = host,
-                        modifier = Modifier.weight(1f),
-                        onMessage = { if (!open) unread++ },
-                    )
-                }
+            // Close lives in ChattyChatScreen's own header (onClose) — no separate close bar
+            // drawn here, which used to stack a second, redundant header above it.
+            // statusBarsPadding keeps the header clear of the status bar on edge-to-edge hosts;
+            // a no-op otherwise.
+            Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                ChattyChatScreen(
+                    botId = botId,
+                    baseUrl = baseUrl,
+                    host = host,
+                    modifier = Modifier.fillMaxSize(),
+                    onMessage = { if (!open) unread++ },
+                    onClose = { open = false },
+                    onVoiceCallPress = onVoiceCallPress,
+                    onNotificationBellPress = onNotificationBellPress,
+                )
             }
         }
     }

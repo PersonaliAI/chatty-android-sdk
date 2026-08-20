@@ -1,6 +1,7 @@
 package com.personaliai.chatty.example
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -10,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.personaliai.chatty.ChattyChatScreen
 import com.personaliai.chatty.ChattyLauncher
@@ -35,6 +37,13 @@ private fun ExampleApp() {
     // Two integration styles, switchable via the tabs below — most apps only
     // need one of these, shown together here so both are easy to try.
     var showFullScreen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    // The SDK's voice-call/notification-bell buttons only fire a callback — it doesn't bundle
+    // a call implementation or push registration itself (see ChattyChatScreen's doc comments).
+    // These toasts just prove the buttons are wired up; a real app would launch its own
+    // LiveKit call screen / notification opt-in flow here instead.
+    val onVoiceCallPress = { Toast.makeText(context, "Voice call tapped — wire up your own call UI here", Toast.LENGTH_SHORT).show() }
+    val onNotificationBellPress = { Toast.makeText(context, "Notification permission resolved — register for push here", Toast.LENGTH_SHORT).show() }
 
     Box(Modifier.fillMaxSize()) {
         if (showFullScreen) {
@@ -45,7 +54,12 @@ private fun ExampleApp() {
                         TextButton(onClick = { showFullScreen = false }) { Text("← Back") }
                     },
                 )
-                ChattyChatScreen(botId = DEMO_BOT_ID, modifier = Modifier.weight(1f))
+                ChattyChatScreen(
+                    botId = DEMO_BOT_ID,
+                    modifier = Modifier.weight(1f),
+                    onVoiceCallPress = onVoiceCallPress,
+                    onNotificationBellPress = onNotificationBellPress,
+                )
             }
         } else {
             Column(Modifier.fillMaxSize().background(Color(0xFFFAFAFA)).padding(24.dp)) {
@@ -65,7 +79,11 @@ private fun ExampleApp() {
             // Floating launcher — its default color follows whatever design
             // is selected for this bot in the dashboard; no primaryColor
             // config needed here.
-            ChattyLauncher(botId = DEMO_BOT_ID)
+            ChattyLauncher(
+                botId = DEMO_BOT_ID,
+                onVoiceCallPress = onVoiceCallPress,
+                onNotificationBellPress = onNotificationBellPress,
+            )
         }
     }
 }
