@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun ExampleApp() {
     // Two integration styles, switchable via the tabs below — most apps only
