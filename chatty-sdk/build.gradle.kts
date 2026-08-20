@@ -68,7 +68,7 @@ mavenPublishing {
         signAllPublications()
     }
 
-    coordinates("com.personaliai", "chatty-android-sdk", "1.0.3")
+    coordinates("com.personaliai", "chatty-android-sdk", "1.0.4")
 
     pom {
         name.set("Chatty Android SDK")

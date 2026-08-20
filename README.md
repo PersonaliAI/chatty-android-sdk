@@ -39,13 +39,15 @@ instead of an embedded browser.
 
 ## Install
 
-> **Using `v1.0.3` or later.** `v1.0.0`/`v1.0.1` never compiled at all (a Gradle configuration
+> **Using `v1.0.4` or later.** `v1.0.0`/`v1.0.1` never compiled at all (a Gradle configuration
 > bug), and `v1.0.2` — while it built — predates the fixes that made the SDK, the example app,
 > and CI itself actually compile cleanly (see the repo's commit history around the
 > `PersonaliAI` org transfer for specifics: a broken coroutine block, missing dependencies, an
-> API-level mismatch, and a missing CI heap size). `v1.0.3` is the first tag built and verified
-> green end-to-end — see the [Release](https://github.com/PersonaliAI/chatty-android-sdk/releases)
-> page for the build artifacts.
+> API-level mismatch, and a missing CI heap size). `v1.0.3` was the first tag verified green
+> end-to-end; `v1.0.4` adds structural UI parity with the web widget (header/bubble/composer
+> sizing, avatars, send-button variants) and corrects stale security docs — see the
+> [Release](https://github.com/PersonaliAI/chatty-android-sdk/releases) page for the build
+> artifacts.
 
 ### Via JitPack (works today, no account needed)
 
@@ -63,7 +65,7 @@ dependencyResolutionManagement {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.3")
+    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.4")
 }
 ```
 
@@ -76,7 +78,7 @@ Sonatype account for the `com.personaliai` namespace. Once published:
 
 ```kotlin
 dependencies {
-    implementation("com.personaliai:chatty-android-sdk:1.0.3")
+    implementation("com.personaliai:chatty-android-sdk:1.0.4")
 }
 ```
 
