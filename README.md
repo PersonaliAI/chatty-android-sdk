@@ -39,13 +39,13 @@ instead of an embedded browser.
 
 ## Install
 
-> **Using `v1.0.2` or later.** The `1.0.0`/`1.0.1` tags predate a JitPack build fix and never
-> compiled anywhere — `mavenPublishing {}` unconditionally required Sonatype credentials at
-> Gradle configuration time, breaking the build before any Kotlin got compiled, even for a plain
-> `assembleDebug`. Fixed in `v1.0.2`, confirmed via a real successful JitPack build under the
-> repo's former location (`jitpack.io/api/builds/com.github.Damayantha/chatty-android-sdk` →
-> `"v1.0.2": "ok"`). The repo has since moved to the `PersonaliAI` org (coordinates below) — the
-> JitPack badge above reflects the current build status at the new location.
+> **Using `v1.0.3` or later.** `v1.0.0`/`v1.0.1` never compiled at all (a Gradle configuration
+> bug), and `v1.0.2` — while it built — predates the fixes that made the SDK, the example app,
+> and CI itself actually compile cleanly (see the repo's commit history around the
+> `PersonaliAI` org transfer for specifics: a broken coroutine block, missing dependencies, an
+> API-level mismatch, and a missing CI heap size). `v1.0.3` is the first tag built and verified
+> green end-to-end — see the [Release](https://github.com/PersonaliAI/chatty-android-sdk/releases)
+> page for the build artifacts.
 
 ### Via JitPack (works today, no account needed)
 
@@ -63,7 +63,7 @@ dependencyResolutionManagement {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.2")
+    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.3")
 }
 ```
 
@@ -76,7 +76,7 @@ Sonatype account for the `com.personaliai` namespace. Once published:
 
 ```kotlin
 dependencies {
-    implementation("com.personaliai:chatty-android-sdk:1.0.2")
+    implementation("com.personaliai:chatty-android-sdk:1.0.3")
 }
 ```
 
