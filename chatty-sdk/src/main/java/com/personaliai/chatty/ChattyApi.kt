@@ -110,7 +110,18 @@ class ChattyClient(
     private val baseUrl: String = CHATTY_DEFAULT_BASE_URL,
     private val host: String? = null,
 ) {
-    private val client = OkHttpClient()
+    // Default OkHttpClient() timeouts are 10s connect/read/write — far too short for this
+    // API. A chat reply can involve RAG retrieval, a scheduling tool-calling round trip
+    // (availability check, booking, notification side effects), and Gemini model-fallback
+    // retries before the first byte comes back, easily exceeding 10s and surfacing to users
+    // as a generic "timeout error" with no other symptom. Read/call timeouts widened well
+    // past that; connect stays short since a stalled TCP handshake really is a fast failure.
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     suspend fun getTheme(): ChattyTheme {
         val url = "$baseUrl/api/widget/theme?bot_id=$botId&t=${System.currentTimeMillis()}"
