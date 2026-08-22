@@ -64,6 +64,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -78,8 +79,12 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import java.io.File
 
 /**
@@ -204,16 +209,37 @@ fun ChattyChatScreen(
     }
 
     // Android 13+ requires a runtime prompt for POST_NOTIFICATIONS; older versions grant it
-    // at install time, so there's nothing to ask there.
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        onNotificationBellPress?.invoke()
+    // at install time, so there's nothing to ask there (treated as always-granted below).
+    fun hasNotificationPermission(): Boolean =
+        android.os.Build.VERSION.SDK_INT < 33 ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    // The bell icon needs to reflect grant state, so it has to be real Compose state — a plain
+    // checkSelfPermission() call inside the click handler (the old code) never triggers a
+    // recomposition, so the icon stayed on its initial glyph forever regardless of what the
+    // user actually granted. Re-checked on ON_RESUME too, since granting/revoking via the
+    // system dialog or the app's Settings page both resume this screen rather than recreating
+    // it, and neither goes through notificationPermissionLauncher's callback.
+    var notificationsGranted by remember { mutableStateOf(hasNotificationPermission()) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationsGranted = granted
+        if (granted) onNotificationBellPress?.invoke()
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationsGranted = hasNotificationPermission()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     fun onBellPress() {
-        if (android.os.Build.VERSION.SDK_INT >= 33) {
-            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-            if (granted) onNotificationBellPress?.invoke() else notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
+        if (notificationsGranted) {
             onNotificationBellPress?.invoke()
+        } else {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
@@ -271,6 +297,7 @@ fun ChattyChatScreen(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ChattyPulsingDot(color = Color(0xFF22C55E))
@@ -283,7 +310,11 @@ fun ChattyChatScreen(
                 if (state.theme?.voiceEnabled == true) {
                     HeaderIconButton(Icons.Filled.Call, "Voice call", t.headerText) { onVoiceCallPress?.invoke() }
                 }
-                HeaderIconButton(Icons.Filled.Notifications, "Notifications", t.headerText) { onBellPress() }
+                HeaderIconButton(
+                    if (notificationsGranted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
+                    if (notificationsGranted) "Notifications" else "Enable notifications",
+                    t.headerText,
+                ) { onBellPress() }
                 HeaderIconButton(Icons.Filled.RestartAlt, "Clear chat", t.headerText) { viewModel.clearChat() }
                 if (onClose != null) {
                     HeaderIconButton(Icons.Filled.Close, "Close", t.headerText, onClose)
