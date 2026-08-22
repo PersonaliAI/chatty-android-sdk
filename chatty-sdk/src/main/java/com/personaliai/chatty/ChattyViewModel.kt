@@ -83,7 +83,11 @@ class ChattyViewModel(
     host: String? = null,
     private val hostKey: String = "app",
     private val pollIntervalMs: Long = 4000L,
-    private val visitorTimezone: String = "UTC",
+    // Real IANA zone (e.g. "Asia/Colombo"), not a literal "UTC" default — the
+    // assistant uses this to skip asking the visitor for their timezone (see
+    // widget_brain.py's scheduling prompt), same as the web widget already does
+    // via Intl.DateTimeFormat().resolvedOptions().timeZone.
+    private val visitorTimezone: String = java.util.TimeZone.getDefault().id,
     private val onMessage: ((ChattyMessage) -> Unit)? = null,
 ) : AndroidViewModel(application) {
 
