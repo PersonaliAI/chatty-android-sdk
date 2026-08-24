@@ -73,6 +73,17 @@ dependencies {
     testImplementation("androidx.test:core:1.6.1")
 }
 
+// A CI run once sat on :chatty-sdk:testDebugUnitTest for 3+ hours with zero
+// output before being manually cancelled (likely a stalled Robolectric
+// android-all-instrumented jar download on a cold Gradle cache — Robolectric
+// fetches those from Maven on first use, and a slow/stuck connection has no
+// other timeout backstop). These bound both the whole test task and any
+// single test method so a hang fails fast and visibly instead of consuming
+// CI minutes silently.
+tasks.withType<Test> {
+    timeout.set(java.time.Duration.ofMinutes(15))
+}
+
 mavenPublishing {
     // Only configure the actual Sonatype publish + signing steps when
     // credentials are present. Both DSL calls validate/require credentials
