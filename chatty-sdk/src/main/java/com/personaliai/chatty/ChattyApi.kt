@@ -243,8 +243,15 @@ class ChattyClient(
                         if (!response.isSuccessful) {
                             return cont.resumeWithException(IOException("Chatty request failed: ${response.code}"))
                         }
-                        val text = response.body?.string() ?: "{}"
-                        cont.resume(JSONObject(text))
+                        // response.body is non-null for any real response
+                        // (even a 200 with no bytes) — the `?:` fallback
+                        // only ever fires on a genuinely null body object,
+                        // not an empty string, so a real empty-body success
+                        // response (a legitimate case, not just a test
+                        // artifact) fell through to JSONObject("") and
+                        // threw. Check the string content instead.
+                        val text = response.body?.string()
+                        cont.resume(if (text.isNullOrBlank()) JSONObject() else JSONObject(text))
                     }
                 } catch (e: Exception) {
                     cont.resumeWithException(e)
