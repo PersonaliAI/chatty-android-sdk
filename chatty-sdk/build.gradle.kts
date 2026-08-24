@@ -30,6 +30,16 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    testOptions {
+        unitTests {
+            // ChattySessionTest/ChattyDesignTokensTest touch real Android framework
+            // classes (SharedPreferences, android.graphics.Color) via Robolectric
+            // rather than the "unmocked android.jar throws" default.
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -49,6 +59,18 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Test-only. JUnit4 for the runner; MockK for mocking Context/SharedPreferences;
+    // kotlinx-coroutines-test for suspend fun tests; MockWebServer to exercise
+    // ChattyClient's real OkHttp request/response path without hitting the network;
+    // Robolectric to back org.json / android.graphics.Color / SharedPreferences with
+    // real implementations instead of the "not mocked" stubs plain JVM unit tests get.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("io.mockk:mockk:1.13.11")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation("androidx.test:core:1.6.1")
 }
 
 mavenPublishing {
