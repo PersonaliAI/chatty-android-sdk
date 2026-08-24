@@ -76,14 +76,21 @@ dependencies {
 }
 
 // A CI run once sat on :chatty-sdk:testDebugUnitTest for 3+ hours with zero
-// output before being manually cancelled (likely a stalled Robolectric
-// android-all-instrumented jar download on a cold Gradle cache — Robolectric
-// fetches those from Maven on first use, and a slow/stuck connection has no
-// other timeout backstop). These bound both the whole test task and any
-// single test method so a hang fails fast and visibly instead of consuming
-// CI minutes silently.
+// output before being manually cancelled, and a second run (after the timeout
+// below was added) hit the 15-minute cap the same way — no per-test output at
+// all either time, so the root cause is still unconfirmed (Robolectric's
+// first-use android-all-instrumented jar download stalling is one candidate,
+// but a real deadlock in one of the tests is equally possible). Gradle's
+// default test logging is silent until the whole task finishes, which is
+// exactly why the last run gave zero diagnostic signal — showStandardStreams
+// + started/passed/skipped/failed events make the next hang show exactly
+// which test class/method it's stuck on instead of another opaque timeout.
 tasks.withType<Test> {
     timeout.set(Duration.ofMinutes(15))
+    testLogging {
+        events("started", "passed", "skipped", "failed")
+        showStandardStreams = true
+    }
 }
 
 mavenPublishing {
