@@ -225,16 +225,29 @@ class ChattyClient(
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) = cont.resumeWithException(e)
             override fun onResponse(call: Call, response: Response) {
-                response.use {
-                    when (response.code) {
-                        429 -> return cont.resumeWithException(ChattyRateLimitException())
-                        403 -> return cont.resumeWithException(ChattyDomainNotAllowedException())
+                // Everything in here — including JSONObject(text) throwing on
+                // a malformed body — must resume `cont` exactly once. Any
+                // exception escaping onResponse uncaught leaves the
+                // suspendCoroutine continuation never resumed, which hangs
+                // the calling coroutine forever (discovered via a genuinely
+                // stuck CI run: a test hitting this exact path hung 15+
+                // minutes with no timeout able to recover it, since the
+                // network call itself had already completed successfully —
+                // this is a post-response parsing bug, not a network hang).
+                try {
+                    response.use {
+                        when (response.code) {
+                            429 -> return cont.resumeWithException(ChattyRateLimitException())
+                            403 -> return cont.resumeWithException(ChattyDomainNotAllowedException())
+                        }
+                        if (!response.isSuccessful) {
+                            return cont.resumeWithException(IOException("Chatty request failed: ${response.code}"))
+                        }
+                        val text = response.body?.string() ?: "{}"
+                        cont.resume(JSONObject(text))
                     }
-                    if (!response.isSuccessful) {
-                        return cont.resumeWithException(IOException("Chatty request failed: ${response.code}"))
-                    }
-                    val text = response.body?.string() ?: "{}"
-                    cont.resume(JSONObject(text))
+                } catch (e: Exception) {
+                    cont.resumeWithException(e)
                 }
             }
         })
