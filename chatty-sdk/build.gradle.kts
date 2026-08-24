@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -81,7 +83,7 @@ dependencies {
 // single test method so a hang fails fast and visibly instead of consuming
 // CI minutes silently.
 tasks.withType<Test> {
-    timeout.set(java.time.Duration.ofMinutes(15))
+    timeout.set(Duration.ofMinutes(15))
 }
 
 mavenPublishing {
