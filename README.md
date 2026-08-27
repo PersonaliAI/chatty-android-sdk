@@ -34,7 +34,7 @@ composer with real Compose UI — fast, themeable, and indistinguishable from th
 ## Install
 
 > [!NOTE]
-> **Use `v1.0.6` or later.** `v1.0.0`–`v1.0.2` predate fixes that were needed for the SDK, the
+> **Use `v1.0.8` or later.** `v1.0.0`–`v1.0.2` predate fixes that were needed for the SDK, the
 > example app, and CI to actually build cleanly. Full history in the
 > [releases](https://github.com/PersonaliAI/chatty-android-sdk/releases) — every tag from
 > `v1.0.3` onward is CI-verified green before it ships.
@@ -55,23 +55,22 @@ dependencyResolutionManagement {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.6")
+    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.8")
 }
 ```
 
 <details>
-<summary><strong>Via Maven Central</strong> (configured, publish pending Sonatype verification)</summary>
+<summary><strong>Via Maven Central</strong> (published, but currently lagging behind JitPack)</summary>
 
 <br>
 
-Publishing is fully wired up (`com.vanniktech.maven.publish`, see
-[`chatty-sdk/build.gradle.kts`](chatty-sdk/build.gradle.kts), and the tag-triggered
-[`release.yml`](.github/workflows/release.yml) workflow) but not yet live — it needs a verified
-Sonatype account for the `com.personaliai` namespace. Once published:
+Live at `com.personaliai:chatty-android-sdk`, but stuck at `1.0.0` — later releases haven't been
+pushed through `release.yml` yet. Use the JitPack coordinate above for the latest fixes until this
+catches up.
 
 ```kotlin
 dependencies {
-    implementation("com.personaliai:chatty-android-sdk:1.0.6")
+    implementation("com.personaliai:chatty-android-sdk:1.0.0")
 }
 ```
 
