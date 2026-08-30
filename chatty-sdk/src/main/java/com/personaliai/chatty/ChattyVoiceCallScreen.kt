@@ -6,9 +6,17 @@
 // Room.activeSpeakers, LocalParticipant.setMicrophoneEnabled,
 // RoomEvent.TranscriptionReceived/ActiveSpeakersChanged/Disconnected/Connected,
 // TranscriptionSegment(id/text/final), LiveKit.create — all confirmed to
-// exist with these exact signatures. What's NOT verified: that this file
-// actually compiles as a whole (no Kotlin/Gradle toolchain here) or that a
-// real call works end-to-end on device. Build and test before releasing.
+// exist with these exact signatures. RoomEvent.TranscriptionReceived is
+// itself annotated @io.livekit.android.annotations.Beta (confirmed via
+// javap's RuntimeInvisibleAnnotations) — hence the file-level @OptIn below.
+// What's NOT verified: that this file actually compiles as a whole — a real
+// Gradle run against the real dependency (see commit history on this file)
+// already caught and fixed three real errors here (wrong graphicsLayer
+// import package, missing Flow.collect import, missing Beta opt-in) that
+// static reasoning alone had missed. Build and test a real call on device
+// before releasing regardless — that part still has zero verification.
+@file:OptIn(io.livekit.android.annotations.Beta::class)
+
 package com.personaliai.chatty
 
 import androidx.compose.animation.core.RepeatMode
@@ -34,8 +42,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import io.livekit.android.LiveKit
 import io.livekit.android.events.RoomEvent
 import io.livekit.android.room.Room
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 private enum class ChattyCallStatus { CONNECTING, REQUESTING_MIC, CONNECTED, LISTENING, AGENT_SPEAKING, ERROR, ENDED }
