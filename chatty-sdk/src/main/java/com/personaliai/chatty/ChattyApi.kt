@@ -73,6 +73,22 @@ data class ChattyChatResponse(
     }
 }
 
+data class ChattyVoiceToken(
+    val token: String,
+    val livekitUrl: String,
+    val roomName: String,
+    val sessionId: String,
+) {
+    companion object {
+        fun fromJson(json: JSONObject): ChattyVoiceToken = ChattyVoiceToken(
+            token = json.optString("token", ""),
+            livekitUrl = json.optString("livekit_url", ""),
+            roomName = json.optString("room_name", ""),
+            sessionId = json.optString("session_id", ""),
+        )
+    }
+}
+
 data class ChattyPollMessage(val content: String, val createdAt: String, val sender: String)
 
 data class ChattyPollResponse(val messages: List<ChattyPollMessage>, val aiPaused: Boolean) {
@@ -165,6 +181,23 @@ class ChattyClient(
     suspend fun poll(sessionId: String, after: String): ChattyPollResponse {
         val url = "$baseUrl/api/widget/poll?bot_id=$botId&session_id=$sessionId&after=$after"
         return ChattyPollResponse.fromJson(execute(Request.Builder().url(url).get().build()))
+    }
+
+    /**
+     * Mints a LiveKit room token + dispatches the voice agent for a call, same endpoint the web
+     * widget uses. Only meaningful when `getTheme().voiceEnabled` is true. This SDK doesn't
+     * bundle the LiveKit client itself — see ChattyVoiceCallScreen, which needs
+     * `io.livekit:livekit-android` as a separate Gradle dependency only apps actually using
+     * voice calls need to add.
+     */
+    suspend fun getVoiceToken(sessionId: String, visitorTimezone: String = "UTC"): ChattyVoiceToken {
+        val body = JSONObject().apply {
+            put("bot_id", botId)
+            put("session_id", sessionId)
+            put("visitor_timezone", visitorTimezone)
+        }.toString().toRequestBody("application/json".toMediaType())
+        val req = Request.Builder().url("$baseUrl/api/widget/voice/token").post(body).build()
+        return ChattyVoiceToken.fromJson(execute(req))
     }
 
     /** Server-side speech-to-text for the mic button. Accepts wav/mp3/ogg/aac/aiff/flac

@@ -242,9 +242,38 @@ this client SDK can add on its own.
 
 <br>
 
-Only shown when the bot's dashboard has voice enabled, and only fires `onVoiceCallPress` — this
-SDK doesn't bundle a voice-call implementation (that's a separate LiveKit integration, out of
-scope here).
+Only shown when the bot's dashboard has voice enabled, and fires `onVoiceCallPress`. This SDK now
+ships a ready-to-render call screen, `ChattyVoiceCallScreen` — render it yourself from that
+callback (it's opt-in: only apps that use it need LiveKit's Android SDK pulled in):
+
+```kotlin
+// build.gradle.kts (your app module)
+dependencies {
+    implementation("io.livekit:livekit-android:2.18.2") // or newer
+}
+```
+
+```kotlin
+// Application.onCreate(), once:
+LiveKit.init(applicationContext)
+```
+
+```kotlin
+var showCall by remember { mutableStateOf(false) }
+if (showCall) {
+    ChattyVoiceCallScreen(
+        client = client,
+        sessionId = sessionId, // the same session id ChattyChatScreen/ChattyViewModel is using
+        widgetStyle = state.theme?.widgetStyle,
+        onClose = { showCall = false },
+    )
+} else {
+    ChattyChatScreen(state = state, onVoiceCallPress = { showCall = true }, /* ... */)
+}
+```
+
+Also add `<uses-permission android:name="android.permission.RECORD_AUDIO" />` to your
+`AndroidManifest.xml` and request it at runtime before the call screen is shown.
 
 </details>
 
