@@ -34,7 +34,7 @@ composer with real Compose UI — fast, themeable, and indistinguishable from th
 ## Install
 
 > [!NOTE]
-> **Use `v1.0.8` or later.** `v1.0.0`–`v1.0.2` predate fixes that were needed for the SDK, the
+> **Use `v1.1.0` or later.** `v1.0.0`–`v1.0.2` predate fixes that were needed for the SDK, the
 > example app, and CI to actually build cleanly. Full history in the
 > [releases](https://github.com/PersonaliAI/chatty-android-sdk/releases) — every tag from
 > `v1.0.3` onward is CI-verified green before it ships.
@@ -55,7 +55,7 @@ dependencyResolutionManagement {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.8")
+    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.1.0")
 }
 ```
 
