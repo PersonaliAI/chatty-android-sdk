@@ -107,7 +107,11 @@ fun ChattyVoiceCallScreen(
             room = r
 
             launch {
-                r.events.collect { event ->
+                // Room.events returns EventListenable<RoomEvent>, a wrapper
+                // — not a Flow itself (confirmed via javap: getEvents()'s
+                // declared return type). The actual SharedFlow is one level
+                // deeper, at EventListenable.events.
+                r.events.events.collect { event ->
                     when (event) {
                         is RoomEvent.Disconnected -> {
                             if (status != ChattyCallStatus.ERROR) status = ChattyCallStatus.ENDED
