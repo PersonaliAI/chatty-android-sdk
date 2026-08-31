@@ -58,6 +58,10 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.activity:activity-compose:1.9.1")
     implementation("io.coil-kt:coil-compose:2.6.0")
+    // Google's own full-Unicode emoji picker (search, categories, skin tones,
+    // recent) — replaces the old hand-picked 60-emoji grid. Local/bundled
+    // data, no network calls.
+    implementation("androidx.emoji2:emoji2-emojipicker:1.6.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

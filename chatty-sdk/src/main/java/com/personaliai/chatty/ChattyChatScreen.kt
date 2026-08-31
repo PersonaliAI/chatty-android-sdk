@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaRecorder
+import android.view.ViewGroup
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -23,9 +25,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -473,36 +472,31 @@ private fun HeaderIconButton(icon: ImageVector, description: String, tint: Color
     }
 }
 
-private val CHATTY_EMOJIS = listOf(
-    "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🙂", "🙃", "😉", "😊", "😇",
-    "🥰", "😍", "🤩", "😘", "😋", "😛", "🤪", "😜", "🤔", "🤨", "😐", "😑",
-    "😶", "🙄", "😏", "😒", "😬", "🙁", "😢", "😭", "😤", "😡", "🥳", "😴",
-    "🤗", "🤝", "👍", "👎", "👏", "🙌", "🙏", "💪", "👋", "✌️", "🤞", "❤️",
-    "🔥", "✨", "🎉", "🎊", "⭐", "💯", "✅", "❌", "❓", "❗", "💬", "👀",
-)
-
+// Full-Unicode emoji picker (search, categories, skin tones, recently used) —
+// Google's own androidx.emoji2 EmojiPickerView, not a hand-picked list.
+// Entirely local/bundled data (no network), so there's nothing to lazily
+// load or show a spinner for — AndroidView inflates it synchronously and it
+// paints in the same frame the panel opens.
 @Composable
 private fun EmojiPicker(onPick: (String) -> Unit) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(8),
-        modifier = Modifier
+    Box(
+        Modifier
             .fillMaxWidth()
-            .height(160.dp)
+            .height(320.dp)
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp), ambientColor = Color(0x40000000), spotColor = Color(0x40000000))
             .clip(RoundedCornerShape(16.dp))
             .background(Color.White)
-            .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(16.dp))
-            .padding(6.dp),
-        contentPadding = PaddingValues(vertical = 4.dp),
+            .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(16.dp)),
     ) {
-        items(CHATTY_EMOJIS) { emoji ->
-            Box(
-                Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).clickable { onPick(emoji) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(emoji, fontSize = 18.sp)
-            }
-        }
+        AndroidView(
+            factory = { context ->
+                androidx.emoji2.emojipicker.EmojiPickerView(context).apply {
+                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    setOnEmojiPickedListener { onPick(it.emoji) }
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 

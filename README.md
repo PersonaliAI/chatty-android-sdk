@@ -28,7 +28,7 @@ composer with real Compose UI — fast, themeable, and indistinguishable from th
 | **No WebView, anywhere** | Every bubble, avatar, and the composer are real `@Composable`s — no iframe, no JS bridge, no WebView memory overhead. |
 | **Matches your dashboard automatically** | Fetches the bot's theme and renders with the exact colors, corner radii, and launcher shape chosen in the dashboard — no manual styling. |
 | **Two integration shapes** | A floating [`ChattyLauncher`](#chattylauncher) bubble + dialog, or an embedded [`ChattyChatScreen`](#chattychatscreen) inside your own layout. |
-| **A real composer, not a stub** | Emoji picker, animated attach menu (camera + gallery), and mic-to-text voice notes — built in, not bolted on. |
+| **A real composer, not a stub** | Full-Unicode emoji picker (search + categories + skin tones, via androidx.emoji2), animated attach menu (camera + gallery), and mic-to-text voice notes — built in, not bolted on. |
 | **Small dependency footprint** | OkHttp, Coil, and Jetpack Compose Material3. Nothing else. |
 
 ## Install
