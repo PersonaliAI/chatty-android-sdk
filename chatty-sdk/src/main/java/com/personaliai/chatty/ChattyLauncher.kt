@@ -40,6 +40,8 @@ fun ChattyLauncher(
     enableVoiceNotes: Boolean = true,
     /** Forwarded to [ChattyChatScreen]'s enableNotificationBell — see its doc for details. */
     enableNotificationBell: Boolean = true,
+    /** Forwarded to [ChattyChatScreen]'s enableLocationSharing — see its doc for details. */
+    enableLocationSharing: Boolean = true,
 ) {
     var open by remember { mutableStateOf(false) }
     var unread by remember { mutableStateOf(0) }
@@ -111,6 +113,7 @@ fun ChattyLauncher(
                     onNotificationBellPress = onNotificationBellPress,
                     enableVoiceNotes = enableVoiceNotes,
                     enableNotificationBell = enableNotificationBell,
+                    enableLocationSharing = enableLocationSharing,
                 )
             }
         }

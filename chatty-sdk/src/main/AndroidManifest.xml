@@ -21,6 +21,13 @@
          is never requested; use tools:node="remove" (see above) to drop it
          from your merged manifest entirely. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- For the attach menu's "Location" option, which requests this at runtime before dropping
+         a Google Maps link into the composer text (matching the web widget — not a special
+         message type, and not auto-sent). Pass enableLocationSharing = false to hide the option
+         and guarantee this is never requested; use tools:node="remove" (see above) to drop it
+         from your merged manifest entirely. Coarse (not fine) accuracy is enough for a
+         conversational "share your general location" feature. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Camera capture goes through an implicit intent to the system camera
          app (ActivityResultContracts.TakePicturePreview), so no CAMERA
          permission is needed here. -->

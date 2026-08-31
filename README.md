@@ -28,7 +28,7 @@ composer with real Compose UI — fast, themeable, and indistinguishable from th
 | **No WebView, anywhere** | Every bubble, avatar, and the composer are real `@Composable`s — no iframe, no JS bridge, no WebView memory overhead. |
 | **Matches your dashboard automatically** | Fetches the bot's theme and renders with the exact colors, corner radii, and launcher shape chosen in the dashboard — no manual styling. |
 | **Two integration shapes** | A floating [`ChattyLauncher`](#chattylauncher) bubble + dialog, or an embedded [`ChattyChatScreen`](#chattychatscreen) inside your own layout. |
-| **A real composer, not a stub** | Full-Unicode emoji picker (search + categories + skin tones, via androidx.emoji2), animated attach menu (camera + gallery), and mic-to-text voice notes — built in, not bolted on. |
+| **A real composer, not a stub** | Full-Unicode emoji picker (search + categories + skin tones, via androidx.emoji2), animated attach menu (camera, gallery, documents, location), and mic-to-text voice notes — built in, not bolted on. |
 | **Small dependency footprint** | OkHttp, Coil, and Jetpack Compose Material3. Nothing else. |
 
 ## Install
@@ -162,6 +162,7 @@ fun ChattyLauncher(
     onNotificationBellPress: (() -> Unit)? = null,
     enableVoiceNotes: Boolean = true,
     enableNotificationBell: Boolean = true,
+    enableLocationSharing: Boolean = true,
 )
 ```
 
@@ -176,6 +177,7 @@ fun ChattyLauncher(
 | `onNotificationBellPress` | Forwarded to `ChattyChatScreen`'s header notification bell. See [Notes](#notes). |
 | `enableVoiceNotes` | Forwarded to `ChattyChatScreen`. See [Permissions](#permissions). |
 | `enableNotificationBell` | Forwarded to `ChattyChatScreen`. See [Permissions](#permissions). |
+| `enableLocationSharing` | Forwarded to `ChattyChatScreen`. See [Permissions](#permissions). |
 
 ### `ChattyChatScreen`
 
@@ -193,6 +195,7 @@ fun ChattyChatScreen(
     onClose: (() -> Unit)? = null,
     enableVoiceNotes: Boolean = true,
     enableNotificationBell: Boolean = true,
+    enableLocationSharing: Boolean = true,
 )
 ```
 
@@ -209,6 +212,7 @@ fun ChattyChatScreen(
 | `onClose` | Renders a close (✕) button in the header when set. `ChattyLauncher` passes this for you; set it yourself only if you're embedding `ChattyChatScreen` directly inside your own dialog/sheet. |
 | `enableVoiceNotes` | Default `true`. Set `false` to hide the composer's mic button — the SDK then never requests `RECORD_AUDIO` at all. See [Permissions](#permissions). |
 | `enableNotificationBell` | Default `true`. Set `false` to hide the header's bell button — the SDK then never requests `POST_NOTIFICATIONS` at all. See [Permissions](#permissions). |
+| `enableLocationSharing` | Default `true`. Set `false` to hide the attach menu's Location option — the SDK then never requests `ACCESS_COARSE_LOCATION` at all. See [Permissions](#permissions). |
 
 ### Notes
 
@@ -217,13 +221,16 @@ fun ChattyChatScreen(
 
 <br>
 
-The SDK's own `AndroidManifest.xml` declares two dangerous/runtime-gated permissions, both of
-which get merged into your app's manifest automatically by the Android Gradle Plugin:
+The SDK's own `AndroidManifest.xml` declares three dangerous/runtime-gated permissions, all of
+which get merged into your app's manifest automatically by the Android Gradle Plugin. Camera and
+Photo Library/Documents aren't in this table — they need no permission at all (system camera
+intent, Storage Access Framework pickers):
 
 | Permission | Risk | Used for | Requested when |
 |---|---|---|---|
 | `RECORD_AUDIO` | Dangerous | Composer mic button → voice-note transcription | User taps the mic button, only if `enableVoiceNotes` (default `true`) |
 | `POST_NOTIFICATIONS` | Runtime-gated (Android 13+) | Header bell button → local notification-permission ask | User taps the bell, only if `enableNotificationBell` (default `true`) |
+| `ACCESS_COARSE_LOCATION` | Dangerous | Attach menu's Location option → drops a Google Maps link into the composer text | User taps Location, only if `enableLocationSharing` (default `true`) |
 
 The SDK **only ever calls the OS permission dialog in direct response to that specific button
 being tapped** — never on load, never speculatively. If you don't want your app requesting one of
@@ -243,8 +250,9 @@ explicit removal to your app's `AndroidManifest.xml`:
 </manifest>
 ```
 
-Do this only alongside `enableVoiceNotes = false` — removing the manifest permission while still
-showing the mic button leaves a dead button whose permission request will always fail.
+Do this only alongside the matching `enable*` param set to `false` (e.g. `enableVoiceNotes =
+false` for `RECORD_AUDIO`) — removing a manifest permission while still showing its button leaves
+a dead button whose permission request will always fail.
 
 The voice-call feature (`ChattyVoiceCallScreen`, opt-in, requires LiveKit) needs its own
 `RECORD_AUDIO` request — see [Voice-call button](#notes) below; it's independent of the composer

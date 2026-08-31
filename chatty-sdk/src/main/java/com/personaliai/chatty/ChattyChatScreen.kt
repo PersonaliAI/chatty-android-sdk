@@ -60,7 +60,9 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
@@ -129,6 +131,14 @@ fun ChattyChatScreen(
      * never calls that launcher, so your app fully controls if/when/how notification permission
      * is ever requested. See the SDK README's Permissions section. */
     enableNotificationBell: Boolean = true,
+    /** Shows the attach menu's "Location" option and, on tap, requests ACCESS_COARSE_LOCATION
+     * (a dangerous permission) via the system dialog. Set false to hide the option entirely —
+     * the SDK then never calls that launcher, so your app fully controls if/when/how location
+     * access is ever requested. Matches the web widget's behavior: drops a Google Maps link for
+     * the current fix into the composer text (not a special message type, and not sent
+     * automatically — the user still taps send). Default true. See the SDK README's
+     * Permissions section. */
+    enableLocationSharing: Boolean = true,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel: ChattyViewModel = viewModel(
@@ -163,6 +173,20 @@ fun ChattyChatScreen(
         if (uri != null) {
             val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
             val tempFile = File(context.cacheDir, "upload_image_${System.currentTimeMillis()}.tmp")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            viewModel.sendImage(tempFile, mimeType, "")
+        }
+    }
+    // OpenDocument (SAF) rather than GetContent: needs a mime-type *array* to
+    // offer more than one file type in the system picker, and — unlike
+    // GetContent — grants a persistable read URI without requiring any
+    // storage/media runtime permission.
+    val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+            val tempFile = File(context.cacheDir, "upload_doc_${System.currentTimeMillis()}.tmp")
             context.contentResolver.openInputStream(uri)?.use { input ->
                 tempFile.outputStream().use { output -> input.copyTo(output) }
             }
@@ -254,6 +278,45 @@ fun ChattyChatScreen(
         } else {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    // Matches the web widget exactly: drops a Google Maps link into the
+    // composer text rather than sending a special "location message" type —
+    // the user still has to tap send. android.location's LocationManager
+    // (framework API) rather than Play Services' FusedLocationProviderClient
+    // — this SDK stays free of a Play Services dependency for one feature.
+    fun insertLocationLink(location: android.location.Location) {
+        val link = "https://www.google.com/maps?q=${location.latitude},${location.longitude}"
+        input = if (input.isBlank()) "📍 My location: $link" else "$input 📍 $link"
+    }
+    fun fetchAndShareLocation() {
+        val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? android.location.LocationManager
+        val provider = when {
+            locationManager?.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) == true -> android.location.LocationManager.GPS_PROVIDER
+            locationManager?.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER) == true -> android.location.LocationManager.NETWORK_PROVIDER
+            else -> null
+        }
+        if (locationManager == null || provider == null) return
+        try {
+            val last = locationManager.getLastKnownLocation(provider)
+            if (last != null) {
+                insertLocationLink(last)
+            } else {
+                locationManager.requestSingleUpdate(provider, object : android.location.LocationListener {
+                    override fun onLocationChanged(loc: android.location.Location) = insertLocationLink(loc)
+                }, android.os.Looper.getMainLooper())
+            }
+        } catch (_: SecurityException) {
+            // permission revoked between the checkSelfPermission above and this call — no-op
+        }
+    }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) fetchAndShareLocation()
+    }
+    fun onLocationPress() {
+        showAttachMenu = false
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (granted) fetchAndShareLocation() else locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
 
     LaunchedEffect(isRecording) {
@@ -380,6 +443,14 @@ fun ChattyChatScreen(
                 AttachMenu(
                     onCamera = { showAttachMenu = false; cameraLauncher.launch(null) },
                     onPhotoLibrary = { showAttachMenu = false; imagePicker.launch("image/*") },
+                    onDocuments = {
+                        showAttachMenu = false
+                        documentPicker.launch(arrayOf(
+                            "application/pdf", "application/msword",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain",
+                        ))
+                    },
+                    onLocation = if (enableLocationSharing) { { onLocationPress() } } else null,
                 )
                 }
             }
@@ -501,7 +572,12 @@ private fun EmojiPicker(onPick: (String) -> Unit) {
 }
 
 @Composable
-private fun AttachMenu(onCamera: () -> Unit, onPhotoLibrary: () -> Unit) {
+private fun AttachMenu(
+    onCamera: () -> Unit,
+    onPhotoLibrary: () -> Unit,
+    onDocuments: () -> Unit,
+    onLocation: (() -> Unit)?,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -514,6 +590,10 @@ private fun AttachMenu(onCamera: () -> Unit, onPhotoLibrary: () -> Unit) {
     ) {
         AttachMenuOption(Icons.Filled.PhotoCamera, "Camera", onCamera, Modifier.weight(1f))
         AttachMenuOption(Icons.Filled.PhotoLibrary, "Photo Library", onPhotoLibrary, Modifier.weight(1f))
+        AttachMenuOption(Icons.Filled.Description, "Documents", onDocuments, Modifier.weight(1f))
+        if (onLocation != null) {
+            AttachMenuOption(Icons.Filled.LocationOn, "Location", onLocation, Modifier.weight(1f))
+        }
     }
 }
 
