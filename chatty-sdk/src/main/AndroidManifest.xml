@@ -1,15 +1,25 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- For the composer's mic button (voice-note transcription). Requested
-         at runtime before recording — declaring it here just makes it mergeable
-         into consuming apps' manifests. -->
+    <!-- For the composer's mic button (voice-note transcription). Requested at
+         runtime before recording — declaring it here just makes it mergeable
+         into consuming apps' manifests. The SDK only ever calls the runtime
+         request if the mic button is actually shown; pass
+         enableVoiceNotes = false to ChattyChatScreen/ChattyLauncher to hide
+         it and guarantee this is never requested. If you also want it gone
+         from your app's own merged permission list (e.g. for a Play Store
+         data-safety form), add
+         `<uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />`
+         to your own AndroidManifest.xml. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- For the header's notification-bell button, which requests this at
          runtime on Android 13+ before invoking onNotificationBellPress. This
          is only the local permission ask — actually delivering a push when a
          reply arrives while backgrounded needs FCM/APNs (or a wrapper like
-         OneSignal) wired up separately at the app level. -->
+         OneSignal) wired up separately at the app level. Pass
+         enableNotificationBell = false to hide the button and guarantee this
+         is never requested; use tools:node="remove" (see above) to drop it
+         from your merged manifest entirely. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Camera capture goes through an implicit intent to the system camera
          app (ActivityResultContracts.TakePicturePreview), so no CAMERA

@@ -116,6 +116,20 @@ fun ChattyChatScreen(
      * your own close bar above [ChattyChatScreen] (e.g. in a dialog/sheet wrapper), so there's
      * one header, not two stacked ones. [ChattyLauncher] already does this for you. */
     onClose: (() -> Unit)? = null,
+    /** Shows the composer's mic button and, on tap, requests RECORD_AUDIO (a dangerous
+     * permission) via the system dialog. Set false to hide the button entirely — the SDK then
+     * never calls the RECORD_AUDIO launcher, so your app fully controls if/when/how that
+     * permission is ever requested (including not at all). The manifest still declares
+     * RECORD_AUDIO (so the merged permission is available if you turn this back on); to drop it
+     * from your app's own permission list entirely, add
+     * `<uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />`
+     * to your app's AndroidManifest.xml. See the SDK README's Permissions section. */
+    enableVoiceNotes: Boolean = true,
+    /** Shows the header's notification-bell button and, on tap, requests POST_NOTIFICATIONS
+     * (Android 13+) via the system dialog. Set false to hide the button entirely — the SDK then
+     * never calls that launcher, so your app fully controls if/when/how notification permission
+     * is ever requested. See the SDK README's Permissions section. */
+    enableNotificationBell: Boolean = true,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel: ChattyViewModel = viewModel(
@@ -310,11 +324,13 @@ fun ChattyChatScreen(
                 if (state.theme?.voiceEnabled == true) {
                     HeaderIconButton(Icons.Filled.Call, "Voice call", t.headerText) { onVoiceCallPress?.invoke() }
                 }
-                HeaderIconButton(
-                    if (notificationsGranted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
-                    if (notificationsGranted) "Notifications" else "Enable notifications",
-                    t.headerText,
-                ) { onBellPress() }
+                if (enableNotificationBell) {
+                    HeaderIconButton(
+                        if (notificationsGranted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
+                        if (notificationsGranted) "Notifications" else "Enable notifications",
+                        t.headerText,
+                    ) { onBellPress() }
+                }
                 HeaderIconButton(Icons.Filled.RestartAlt, "Clear chat", t.headerText) { viewModel.clearChat() }
                 if (onClose != null) {
                     HeaderIconButton(Icons.Filled.Close, "Close", t.headerText, onClose)
@@ -402,23 +418,25 @@ fun ChattyChatScreen(
                     IconButton(onClick = { showAttachMenu = !showAttachMenu; showEmojiPicker = false }, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.AttachFile, contentDescription = "Attach", tint = Color(0xFF9CA3AF), modifier = Modifier.size(20.dp))
                     }
-                    IconButton(
-                        onClick = {
-                            if (isRecording) {
-                                stopRecordingAndTranscribe()
-                            } else {
-                                val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                                if (granted) startRecording() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            if (isRecording) Icons.Filled.Stop else Icons.Filled.Mic,
-                            contentDescription = if (isRecording) "Stop recording" else "Record voice note",
-                            tint = if (isRecording) Color(0xFFEF4444) else Color(0xFF9CA3AF),
-                            modifier = Modifier.size(20.dp),
-                        )
+                    if (enableVoiceNotes) {
+                        IconButton(
+                            onClick = {
+                                if (isRecording) {
+                                    stopRecordingAndTranscribe()
+                                } else {
+                                    val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                                    if (granted) startRecording() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            },
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                if (isRecording) Icons.Filled.Stop else Icons.Filled.Mic,
+                                contentDescription = if (isRecording) "Stop recording" else "Record voice note",
+                                tint = if (isRecording) Color(0xFFEF4444) else Color(0xFF9CA3AF),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                     }
                 }
                 ChattySendButton(

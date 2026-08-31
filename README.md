@@ -160,6 +160,8 @@ fun ChattyLauncher(
     color: Color? = null,
     onVoiceCallPress: (() -> Unit)? = null,
     onNotificationBellPress: (() -> Unit)? = null,
+    enableVoiceNotes: Boolean = true,
+    enableNotificationBell: Boolean = true,
 )
 ```
 
@@ -172,6 +174,8 @@ fun ChattyLauncher(
 | `color` | Overrides the launcher color. Defaults to the active design's accent color. |
 | `onVoiceCallPress` | Forwarded to `ChattyChatScreen`'s header voice-call button. See [Notes](#notes). |
 | `onNotificationBellPress` | Forwarded to `ChattyChatScreen`'s header notification bell. See [Notes](#notes). |
+| `enableVoiceNotes` | Forwarded to `ChattyChatScreen`. See [Permissions](#permissions). |
+| `enableNotificationBell` | Forwarded to `ChattyChatScreen`. See [Permissions](#permissions). |
 
 ### `ChattyChatScreen`
 
@@ -187,6 +191,8 @@ fun ChattyChatScreen(
     onVoiceCallPress: (() -> Unit)? = null,
     onNotificationBellPress: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
+    enableVoiceNotes: Boolean = true,
+    enableNotificationBell: Boolean = true,
 )
 ```
 
@@ -201,8 +207,50 @@ fun ChattyChatScreen(
 | `onVoiceCallPress` | Header voice-call button tapped. Only shown when the bot's dashboard has voice enabled. See [Notes](#notes). |
 | `onNotificationBellPress` | Header notification-bell button tapped, after the OS permission prompt resolves. See [Notes](#notes). |
 | `onClose` | Renders a close (✕) button in the header when set. `ChattyLauncher` passes this for you; set it yourself only if you're embedding `ChattyChatScreen` directly inside your own dialog/sheet. |
+| `enableVoiceNotes` | Default `true`. Set `false` to hide the composer's mic button — the SDK then never requests `RECORD_AUDIO` at all. See [Permissions](#permissions). |
+| `enableNotificationBell` | Default `true`. Set `false` to hide the header's bell button — the SDK then never requests `POST_NOTIFICATIONS` at all. See [Permissions](#permissions). |
 
 ### Notes
+
+<details open>
+<summary><strong id="permissions">Permissions — what this SDK declares, and how to opt out</strong></summary>
+
+<br>
+
+The SDK's own `AndroidManifest.xml` declares two dangerous/runtime-gated permissions, both of
+which get merged into your app's manifest automatically by the Android Gradle Plugin:
+
+| Permission | Risk | Used for | Requested when |
+|---|---|---|---|
+| `RECORD_AUDIO` | Dangerous | Composer mic button → voice-note transcription | User taps the mic button, only if `enableVoiceNotes` (default `true`) |
+| `POST_NOTIFICATIONS` | Runtime-gated (Android 13+) | Header bell button → local notification-permission ask | User taps the bell, only if `enableNotificationBell` (default `true`) |
+
+The SDK **only ever calls the OS permission dialog in direct response to that specific button
+being tapped** — never on load, never speculatively. If you don't want your app requesting one of
+these at all, set the matching `enable*` param to `false`; the button disappears and the SDK will
+never touch that permission at runtime, regardless of what's declared in the manifest. Your app
+remains free to request `RECORD_AUDIO`/`POST_NOTIFICATIONS` itself, on its own schedule, for its
+own purposes (this SDK's opt-out only stops *this SDK* from requesting them).
+
+If you also need the permission gone from your app's own merged manifest (e.g. for a Play Store
+Data Safety form, or a security review that flags any declared dangerous permission), add an
+explicit removal to your app's `AndroidManifest.xml`:
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+</manifest>
+```
+
+Do this only alongside `enableVoiceNotes = false` — removing the manifest permission while still
+showing the mic button leaves a dead button whose permission request will always fail.
+
+The voice-call feature (`ChattyVoiceCallScreen`, opt-in, requires LiveKit) needs its own
+`RECORD_AUDIO` request — see [Voice-call button](#notes) below; it's independent of the composer
+mic button and isn't controlled by `enableVoiceNotes`.
+
+</details>
 
 <details open>
 <summary><strong>Security — <code>bot_id</code> and domain restriction</strong></summary>

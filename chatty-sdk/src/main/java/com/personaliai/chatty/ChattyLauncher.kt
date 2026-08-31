@@ -36,6 +36,10 @@ fun ChattyLauncher(
     onVoiceCallPress: (() -> Unit)? = null,
     /** Forwarded to [ChattyChatScreen]'s onNotificationBellPress — see its doc for details. */
     onNotificationBellPress: (() -> Unit)? = null,
+    /** Forwarded to [ChattyChatScreen]'s enableVoiceNotes — see its doc for details. */
+    enableVoiceNotes: Boolean = true,
+    /** Forwarded to [ChattyChatScreen]'s enableNotificationBell — see its doc for details. */
+    enableNotificationBell: Boolean = true,
 ) {
     var open by remember { mutableStateOf(false) }
     var unread by remember { mutableStateOf(0) }
@@ -105,6 +109,8 @@ fun ChattyLauncher(
                     onClose = { open = false },
                     onVoiceCallPress = onVoiceCallPress,
                     onNotificationBellPress = onNotificationBellPress,
+                    enableVoiceNotes = enableVoiceNotes,
+                    enableNotificationBell = enableNotificationBell,
                 )
             }
         }
