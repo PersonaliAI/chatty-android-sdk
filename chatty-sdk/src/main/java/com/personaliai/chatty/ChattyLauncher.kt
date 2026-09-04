@@ -1,10 +1,12 @@
 package com.personaliai.chatty
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,11 +15,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
+import coil.compose.AsyncImage
 
 /**
  * Floating launcher button + full-screen dialog chat panel — the native-SDK
@@ -32,35 +35,63 @@ fun ChattyLauncher(
     host: String? = null,
     position: ChattyPosition = ChattyPosition.BOTTOM_END,
     color: Color? = null,
-    /** Forwarded to [ChattyChatScreen]'s onVoiceCallPress — see its doc for details. */
-    onVoiceCallPress: (() -> Unit)? = null,
-    /** Forwarded to [ChattyChatScreen]'s onNotificationBellPress — see its doc for details. */
-    onNotificationBellPress: (() -> Unit)? = null,
-    /** Forwarded to [ChattyChatScreen]'s enableVoiceNotes — see its doc for details. */
-    enableVoiceNotes: Boolean = true,
-    /** Forwarded to [ChattyChatScreen]'s enableNotificationBell — see its doc for details. */
-    enableNotificationBell: Boolean = true,
-    /** Forwarded to [ChattyChatScreen]'s enableLocationSharing — see its doc for details. */
-    enableLocationSharing: Boolean = true,
+    /** Forwarded to [ChattyEmbedScreen]'s onRequestNotificationPermission — see its doc for details. */
+    onRequestNotificationPermission: ((botName: String?) -> Unit)? = null,
+    /** Forwarded to [ChattyEmbedScreen]'s onMicPermissionNeeded — see its doc for details. */
+    onMicPermissionNeeded: (() -> Unit)? = null,
+    /** Forwarded to [ChattyEmbedScreen]'s onLocationPermissionNeeded — see its doc for details. */
+    onLocationPermissionNeeded: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     var unread by remember { mutableStateOf(0) }
     var designId by remember { mutableStateOf("minimal") }
     var rawWidgetStyle by remember { mutableStateOf<String?>(null) }
+    var colorScheme by remember { mutableStateOf<ChattyColorScheme?>(null) }
+    // Same avatar_icon/avatar_url/logo_url the header avatar (in ChattyChatScreen,
+    // and EmbedClient.tsx's own avatarInner()) renders — so the launcher shows the
+    // bot's actual configured branding instead of an unrelated fixed glyph.
+    var avatarIcon by remember { mutableStateOf<String?>(null) }
+    var avatarUrl by remember { mutableStateOf<String?>(null) }
+    var logoUrl by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(botId) {
         try {
             val theme = ChattyClient(botId, baseUrl, host).getTheme()
             designId = chattyNormalizeWidgetStyle(theme.widgetStyle)
             rawWidgetStyle = theme.widgetStyle
+            colorScheme = theme.colorScheme
+            avatarIcon = theme.avatarIcon
+            avatarUrl = theme.avatarUrl
+            logoUrl = theme.logoUrl
         } catch (_: Exception) {
             // keep the fallback design — a failed theme fetch shouldn't block the button from rendering
         }
     }
     val tokens = chattyDesignTokens[designId] ?: chattyDesignTokens.getValue("minimal")
-    val resolvedColor = color ?: tokens.launcherBg
-    val isGradient = color == null && designId == "gradient-glow"
+    val launcherOverride = colorScheme?.launcher
+    val resolvedColor = color ?: chattyParseColor(launcherOverride?.bg) ?: tokens.launcherBg
+    // A color_scheme override always wins with a solid color — same as web,
+    // where buildColorSchemeCss's launcher rule would also beat the gradient.
+    val isGradient = color == null && launcherOverride?.bg == null && designId == "gradient-glow"
     val launcherShape = chattyLauncherShape(rawWidgetStyle, position)
+    // web's launcher icon is a crisp vector line icon (Lucide's MessageCircle by
+    // default, or whatever avatarIconType the bot owner picked), not a raw
+    // platform emoji glyph — a Unicode 💬 renders as a flat colorful glyph that
+    // varies by OEM emoji font and has no "outline" character at all.
+    val iconTint = chattyParseColor(launcherOverride?.text) ?: Color.White
+    // Same precedence as EmbedClient.tsx's own avatarInner(): a real uploaded
+    // custom avatar wins, then a known vector-icon type, then the bot's fallback
+    // logo image — a plain glyph is the last resort, not the default, so the
+    // launcher visually matches the widget's actual branding instead of showing
+    // an unrelated icon next to it.
+    val knownVectorIconTypes = setOf("headset", "sparkles", "message", "user")
+    val launcherImageUrl = when {
+        avatarIcon == "custom" && !avatarUrl.isNullOrEmpty() -> avatarUrl
+        avatarIcon in knownVectorIconTypes -> null
+        !logoUrl.isNullOrEmpty() -> logoUrl
+        else -> null
+    }
+    val launcherIcon = chattyAvatarIconVector(avatarIcon)
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.align(position.alignment).padding(20.dp)) {
@@ -76,7 +107,16 @@ fun ChattyLauncher(
                     .clickable { open = true; unread = 0 },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("💬", fontSize = 24.sp)
+                if (launcherImageUrl != null) {
+                    AsyncImage(
+                        model = launcherImageUrl,
+                        contentDescription = "Open chat",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    )
+                } else {
+                    Icon(launcherIcon, contentDescription = "Open chat", tint = iconTint, modifier = Modifier.size(26.dp))
+                }
             }
             if (unread > 0) {
                 Box(
@@ -95,27 +135,44 @@ fun ChattyLauncher(
         }
     }
 
-    if (open) {
-        Dialog(onDismissRequest = { open = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            // Close lives in ChattyChatScreen's own header (onClose) — no separate close bar
-            // drawn here, which used to stack a second, redundant header above it.
-            // statusBarsPadding keeps the header clear of the status bar on edge-to-edge hosts;
-            // a no-op otherwise.
-            Box(Modifier.fillMaxSize().statusBarsPadding()) {
-                ChattyChatScreen(
-                    botId = botId,
-                    baseUrl = baseUrl,
-                    host = host,
-                    modifier = Modifier.fillMaxSize(),
-                    onMessage = { if (!open) unread++ },
-                    onClose = { open = false },
-                    onVoiceCallPress = onVoiceCallPress,
-                    onNotificationBellPress = onNotificationBellPress,
-                    enableVoiceNotes = enableVoiceNotes,
-                    enableNotificationBell = enableNotificationBell,
-                    enableLocationSharing = enableLocationSharing,
-                )
-            }
+    // Once opened, the panel (and its WebView) stays composed for the rest of
+    // this launcher's lifetime — only its visibility toggles from then on.
+    // A `Dialog` (this used previously) fully unmounts on dismiss, destroying
+    // the WebView and forcing a genuine fresh page load + lost scroll
+    // position on every reopen; the real web widget's own iframe never does
+    // this, it's just shown/hidden via CSS. Matching that here means reopening
+    // is instant with no reload, same as web.
+    var hasOpenedOnce by remember { mutableStateOf(false) }
+    if (open) hasOpenedOnce = true
+
+    if (hasOpenedOnce) {
+        if (open) BackHandler { open = false }
+        Box(
+            Modifier
+                .zIndex(1f)
+                // Zero-size instead of removing from composition — keeps the
+                // WebView (and its JS state/scroll position/session) alive
+                // while closed, instead of tearing it down. background() must
+                // be applied AFTER (i.e. nested inside) the size constraint —
+                // otherwise it paints using the fillMaxSize() bounds
+                // established earlier in the chain regardless of the later
+                // size(0.dp), which is why this used to paint solid color
+                // over the whole screen even while "closed".
+                .then(
+                    if (open) Modifier.fillMaxSize().background(tokens.containerBg)
+                    else Modifier.size(0.dp)
+                ),
+        ) {
+            ChattyEmbedScreen(
+                botId = botId,
+                modifier = Modifier.fillMaxSize(),
+                onMessage = { if (!open) unread++ },
+                onClose = { open = false },
+                onRequestNotificationPermission = onRequestNotificationPermission,
+                onMicPermissionNeeded = onMicPermissionNeeded,
+                onLocationPermissionNeeded = onLocationPermissionNeeded,
+                visible = open,
+            )
         }
     }
 }

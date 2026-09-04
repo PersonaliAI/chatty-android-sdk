@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- ChattyEmbedScreen's offline-detection retry screen (ConnectivityManager).
+         Normal/install-time permission — no runtime prompt involved. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- For the composer's mic button (voice-note transcription). Requested at
          runtime before recording — declaring it here just makes it mergeable
          into consuming apps' manifests. The SDK only ever calls the runtime
@@ -11,6 +14,13 @@
          `<uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />`
          to your own AndroidManifest.xml. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Normal permission (no runtime prompt) — WebView's Chromium audio
+         manager needs this to route the audio session correctly for
+         getUserMedia({audio:true}) recording (ChattyEmbedScreen's composer
+         mic button); without it, Chromium logs "Unable to select
+         communication device!" and audio capture silently fails even
+         though RECORD_AUDIO itself is granted. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- For the header's notification-bell button, which requests this at
          runtime on Android 13+ before invoking onNotificationBellPress. This

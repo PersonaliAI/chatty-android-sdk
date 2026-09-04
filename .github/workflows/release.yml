@@ -30,8 +30,14 @@ jobs:
       - name: Build release AAR
         run: ./gradlew :chatty-sdk:assembleRelease
 
+      # chatty-example-app is its own Gradle root (pulls in :chatty-sdk as a
+      # sibling-directory source dependency) with its own wrapper — see
+      # chatty-example-app/settings.gradle.kts.
       - name: Build example APK
-        run: ./gradlew :example-app:assembleDebug
+        working-directory: chatty-example-app
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug
 
       # JitPack builds straight from the git tag, no action needed here —
       # this step only handles the optional Maven Central publish.
@@ -50,4 +56,4 @@ jobs:
           generate_release_notes: true
           files: |
             chatty-sdk/build/outputs/aar/chatty-sdk-release.aar
-            example-app/build/outputs/apk/debug/example-app-debug.apk
+            chatty-example-app/app/build/outputs/apk/debug/app-debug.apk

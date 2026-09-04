@@ -51,7 +51,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -74,15 +73,7 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SupportAgent
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -107,37 +98,39 @@ fun ChattyChatScreen(
      * dashboard has voice enabled). This SDK doesn't bundle a voice-call implementation
      * (that's a separate LiveKit integration) — wire this up if your app has one. */
     onVoiceCallPress: (() -> Unit)? = null,
-    /** Called when the header's notification-bell button is tapped, after the OS
-     * notification-permission prompt (Android 13+) has been resolved either way. Native apps
+    /** Called when the header's notification-bell button is tapped (only shown once
+     * POST_NOTIFICATIONS is already granted — see [enableNotificationBell]). Native apps
      * still need their own push infrastructure (FCM/APNs, or a wrapper like OneSignal) to
      * actually *deliver* a notification when a reply arrives while the app is backgrounded —
-     * this SDK only handles the local permission ask, not registration/delivery. */
+     * this SDK only reflects the permission state, not registration/delivery. */
     onNotificationBellPress: (() -> Unit)? = null,
     /** Renders a close (✕) button in the header when provided — pass this instead of drawing
      * your own close bar above [ChattyChatScreen] (e.g. in a dialog/sheet wrapper), so there's
      * one header, not two stacked ones. [ChattyLauncher] already does this for you. */
     onClose: (() -> Unit)? = null,
-    /** Shows the composer's mic button and, on tap, requests RECORD_AUDIO (a dangerous
-     * permission) via the system dialog. Set false to hide the button entirely — the SDK then
-     * never calls the RECORD_AUDIO launcher, so your app fully controls if/when/how that
-     * permission is ever requested (including not at all). The manifest still declares
-     * RECORD_AUDIO (so the merged permission is available if you turn this back on); to drop it
-     * from your app's own permission list entirely, add
+    /** Gates the composer's mic button on RECORD_AUDIO (a dangerous permission) already being
+     * granted — the SDK never requests it itself. Your app owns asking for it (its own
+     * `rememberLauncherForActivityResult(RequestPermission())` elsewhere, however/whenever you
+     * choose); the button appears automatically once granted (re-checked on resume) and stays
+     * hidden otherwise, so there's no silently-failing button and no surprise system dialog
+     * triggered from inside the SDK. Set false to hide the button regardless of permission
+     * state. The manifest still declares RECORD_AUDIO (so it's available for your own request);
+     * to drop it from your app's own permission list entirely, add
      * `<uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />`
      * to your app's AndroidManifest.xml. See the SDK README's Permissions section. */
     enableVoiceNotes: Boolean = true,
-    /** Shows the header's notification-bell button and, on tap, requests POST_NOTIFICATIONS
-     * (Android 13+) via the system dialog. Set false to hide the button entirely — the SDK then
-     * never calls that launcher, so your app fully controls if/when/how notification permission
-     * is ever requested. See the SDK README's Permissions section. */
+    /** Gates the header's notification-bell button on POST_NOTIFICATIONS (Android 13+) already
+     * being granted — the SDK never requests it itself; see [enableVoiceNotes] for the same
+     * request-ownership contract. Pre-13 devices grant this at install time, so the button
+     * always shows there. Set false to hide the button regardless of permission state. See the
+     * SDK README's Permissions section. */
     enableNotificationBell: Boolean = true,
-    /** Shows the attach menu's "Location" option and, on tap, requests ACCESS_COARSE_LOCATION
-     * (a dangerous permission) via the system dialog. Set false to hide the option entirely —
-     * the SDK then never calls that launcher, so your app fully controls if/when/how location
-     * access is ever requested. Matches the web widget's behavior: drops a Google Maps link for
-     * the current fix into the composer text (not a special message type, and not sent
-     * automatically — the user still taps send). Default true. See the SDK README's
-     * Permissions section. */
+    /** Gates the attach menu's "Location" option on ACCESS_COARSE_LOCATION already being
+     * granted — the SDK never requests it itself; see [enableVoiceNotes] for the same
+     * request-ownership contract. Once granted, tapping it matches the web widget's behavior:
+     * drops a Google Maps link for the current fix into the composer text (not a special
+     * message type, and not sent automatically — the user still taps send). Set false to hide
+     * the option regardless of permission state. See the SDK README's Permissions section. */
     enableLocationSharing: Boolean = true,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -154,10 +147,33 @@ fun ChattyChatScreen(
     )
     val state by viewModel.state.collectAsState()
     val designId = chattyNormalizeWidgetStyle(state.theme?.widgetStyle)
-    val t = chattyDesignTokens[designId] ?: chattyDesignTokens.getValue("minimal")
+    val cs = state.theme?.colorScheme
+    // The dashboard's per-section color overrides (color_scheme) win over the
+    // design preset's own colors wherever a section's bg is set — mirrors
+    // buildColorSchemeCss's !important rules on web exactly. Merging into `t`
+    // here means every downstream read of `t.headerBg`/`t.botBubbleBg`/etc.
+    // (including Bubble/TypingBubble, which never see color_scheme directly)
+    // picks up the override for free.
+    val t = run {
+        val base = chattyDesignTokens[designId] ?: chattyDesignTokens.getValue("minimal")
+        base.copy(
+            headerBg = chattyParseColor(cs?.header?.bg) ?: base.headerBg,
+            headerText = chattyParseColor(cs?.header?.text) ?: base.headerText,
+            botBubbleBg = chattyParseColor(cs?.botBubble?.bg) ?: base.botBubbleBg,
+            botBubbleText = chattyParseColor(cs?.botBubble?.text) ?: base.botBubbleText,
+            userBubbleBg = chattyParseColor(cs?.userBubble?.bg) ?: base.userBubbleBg,
+            userBubbleText = chattyParseColor(cs?.userBubble?.text) ?: base.userBubbleText,
+        )
+    }
     // Every design's .send-btn background matches its .user-bubble background
-    // on web — reuse that as the "accent" for the send button and spinners.
+    // on web — reuse that as the "accent" for the send button and spinners,
+    // unless color_scheme.sendBtn overrides it independently (below).
     val accent = t.userBubbleBg
+    val sendBtnBg = chattyParseColor(cs?.sendBtn?.bg) ?: accent
+    val sendBtnText = chattyParseColor(cs?.sendBtn?.text) ?: t.userBubbleText
+    val inputBarBg = chattyParseColor(cs?.inputBar?.bg) ?: t.containerBg
+    val inputBarText = chattyParseColor(cs?.inputBar?.text) ?: t.botBubbleText
+    val inputBarIconTint = chattyParseColor(cs?.inputBar?.icon)
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -241,43 +257,47 @@ fun ChattyChatScreen(
         }
     }
 
-    val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startRecording()
-    }
-
+    // Dangerous-permission policy: this SDK never triggers a system permission
+    // dialog itself — it only reflects whatever the host app has already
+    // granted (or not). Each gated button/option below simply doesn't render
+    // when its permission is missing, rather than showing something that
+    // would either silently no-op or have to request it internally. The host
+    // app owns if/when/how to actually ask (its own
+    // rememberLauncherForActivityResult elsewhere) — see enableVoiceNotes/
+    // enableNotificationBell/enableLocationSharing's doc comments and the
+    // README's Permissions section.
+    fun hasMicPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     // Android 13+ requires a runtime prompt for POST_NOTIFICATIONS; older versions grant it
     // at install time, so there's nothing to ask there (treated as always-granted below).
     fun hasNotificationPermission(): Boolean =
         android.os.Build.VERSION.SDK_INT < 33 ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-    // The bell icon needs to reflect grant state, so it has to be real Compose state — a plain
-    // checkSelfPermission() call inside the click handler (the old code) never triggers a
-    // recomposition, so the icon stayed on its initial glyph forever regardless of what the
-    // user actually granted. Re-checked on ON_RESUME too, since granting/revoking via the
-    // system dialog or the app's Settings page both resume this screen rather than recreating
-    // it, and neither goes through notificationPermissionLauncher's callback.
+    // Each gated button needs to reflect grant state as real Compose state — a plain
+    // checkSelfPermission() call at render time wouldn't trigger a recomposition when the host
+    // app requests the permission itself elsewhere, so the button would stay hidden (or shown)
+    // forever regardless of what actually got granted afterward. Re-checked on ON_RESUME, since
+    // granting via the system dialog or the app's Settings page both resume this screen.
+    var micPermissionGranted by remember { mutableStateOf(hasMicPermission()) }
     var notificationsGranted by remember { mutableStateOf(hasNotificationPermission()) }
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        notificationsGranted = granted
-        if (granted) onNotificationBellPress?.invoke()
-    }
+    var locationPermissionGranted by remember { mutableStateOf(hasLocationPermission()) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                micPermissionGranted = hasMicPermission()
                 notificationsGranted = hasNotificationPermission()
+                locationPermissionGranted = hasLocationPermission()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     fun onBellPress() {
-        if (notificationsGranted) {
-            onNotificationBellPress?.invoke()
-        } else {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        onNotificationBellPress?.invoke()
     }
 
     // Matches the web widget exactly: drops a Google Maps link into the
@@ -307,16 +327,12 @@ fun ChattyChatScreen(
                 }, android.os.Looper.getMainLooper())
             }
         } catch (_: SecurityException) {
-            // permission revoked between the checkSelfPermission above and this call — no-op
+            // permission revoked between the button rendering and this call — no-op
         }
-    }
-    val locationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) fetchAndShareLocation()
     }
     fun onLocationPress() {
         showAttachMenu = false
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (granted) fetchAndShareLocation() else locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+        fetchAndShareLocation()
     }
 
     LaunchedEffect(isRecording) {
@@ -339,9 +355,15 @@ fun ChattyChatScreen(
         return
     }
 
-    Column(modifier.fillMaxSize().background(t.containerBg)) {
+    // statusBarsPadding keeps the header clear of the status bar on edge-to-edge
+    // hosts (a no-op otherwise) — applied here rather than by each caller so a
+    // direct full-screen embed and ChattyLauncher's Dialog panel both get it
+    // right automatically instead of depending on the caller to remember it.
+    Column(modifier.fillMaxSize().background(t.containerBg).statusBarsPadding()) {
         // Header: px-4 pt-3 pb-2 on web -> 16dp horizontal, 12dp top, 8dp bottom.
-        val headerModifier = if (designId == "gradient-glow") {
+        // A color_scheme.header override wins even over gradient-glow's own
+        // gradient — matches buildColorSchemeCss's !important solid-color rule.
+        val headerModifier = if (designId == "gradient-glow" && cs?.header?.bg == null) {
             Modifier.fillMaxWidth().background(Brush.linearGradient(ChattyGradientGlowHeaderColors)).padding(16.dp, 12.dp, 16.dp, 8.dp)
         } else {
             Modifier.fillMaxWidth().background(t.headerBg).padding(16.dp, 12.dp, 16.dp, 8.dp)
@@ -386,12 +408,10 @@ fun ChattyChatScreen(
                 if (state.theme?.voiceEnabled == true) {
                     HeaderIconButton(Icons.Filled.Call, "Voice call", t.headerText) { onVoiceCallPress?.invoke() }
                 }
-                if (enableNotificationBell) {
-                    HeaderIconButton(
-                        if (notificationsGranted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
-                        if (notificationsGranted) "Notifications" else "Enable notifications",
-                        t.headerText,
-                    ) { onBellPress() }
+                // Only rendered once POST_NOTIFICATIONS is already granted — see
+                // enableNotificationBell's doc comment; the SDK never requests it itself.
+                if (enableNotificationBell && notificationsGranted) {
+                    HeaderIconButton(Icons.Filled.Notifications, "Notifications", t.headerText) { onBellPress() }
                 }
                 HeaderIconButton(Icons.Filled.RestartAlt, "Clear chat", t.headerText) { viewModel.clearChat() }
                 if (onClose != null) {
@@ -408,7 +428,7 @@ fun ChattyChatScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             items(state.messages, key = { it.id }) { msg ->
-                Bubble(msg, t, state.theme?.avatarIcon, state.theme?.avatarUrl)
+                Bubble(msg, t, state.theme?.avatarIcon, state.theme?.avatarUrl, state.theme?.showSenderTag == true)
             }
             if (state.sending) {
                 item { TypingBubble(t, state.theme?.avatarIcon, state.theme?.avatarUrl) }
@@ -429,13 +449,13 @@ fun ChattyChatScreen(
                 .fillMaxWidth()
                 .padding(10.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(t.containerBg)
+                .background(inputBarBg)
                 .border(1.dp, t.headerText.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
                 .padding(12.dp, 10.dp, 12.dp, 6.dp),
         ) {
             AnimatedVisibility(visible = showEmojiPicker, enter = fadeIn() + scaleIn(initialScale = 0.85f) + expandVertically(), exit = fadeOut() + scaleOut(targetScale = 0.85f) + shrinkVertically()) {
                 Box(Modifier.padding(bottom = 8.dp)) {
-                    EmojiPicker(onPick = { emoji -> input += emoji })
+                    EmojiPicker(borderColor = t.headerText.copy(alpha = 0.12f), onPick = { emoji -> input += emoji })
                 }
             }
             AnimatedVisibility(visible = showAttachMenu, enter = fadeIn() + scaleIn(initialScale = 0.85f) + expandVertically(), exit = fadeOut() + scaleOut(targetScale = 0.85f) + shrinkVertically()) {
@@ -450,7 +470,9 @@ fun ChattyChatScreen(
                             "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain",
                         ))
                     },
-                    onLocation = if (enableLocationSharing) { { onLocationPress() } } else null,
+                    // Only offered once ACCESS_COARSE_LOCATION is already granted — see
+                    // enableLocationSharing's doc comment; the SDK never requests it itself.
+                    onLocation = if (enableLocationSharing && locationPermissionGranted) { { onLocationPress() } } else null,
                 )
                 }
             }
@@ -463,7 +485,7 @@ fun ChattyChatScreen(
                     onValueChange = { input = it },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("Type a message…", fontSize = 13.sp) },
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = t.botBubbleText),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = inputBarText),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -483,27 +505,22 @@ fun ChattyChatScreen(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     IconButton(onClick = { showEmojiPicker = !showEmojiPicker; showAttachMenu = false }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.EmojiEmotions, contentDescription = "Emoji", tint = Color(0xFF9CA3AF), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.EmojiEmotions, contentDescription = "Emoji", tint = inputBarIconTint ?: Color(0xFF9CA3AF), modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = { showAttachMenu = !showAttachMenu; showEmojiPicker = false }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.AttachFile, contentDescription = "Attach", tint = Color(0xFF9CA3AF), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.AttachFile, contentDescription = "Attach", tint = inputBarIconTint ?: Color(0xFF9CA3AF), modifier = Modifier.size(20.dp))
                     }
-                    if (enableVoiceNotes) {
+                    // Only rendered once RECORD_AUDIO is already granted — see
+                    // enableVoiceNotes's doc comment; the SDK never requests it itself.
+                    if (enableVoiceNotes && micPermissionGranted) {
                         IconButton(
-                            onClick = {
-                                if (isRecording) {
-                                    stopRecordingAndTranscribe()
-                                } else {
-                                    val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                                    if (granted) startRecording() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            },
+                            onClick = { if (isRecording) stopRecordingAndTranscribe() else startRecording() },
                             modifier = Modifier.size(32.dp),
                         ) {
                             Icon(
                                 if (isRecording) Icons.Filled.Stop else Icons.Filled.Mic,
                                 contentDescription = if (isRecording) "Stop recording" else "Record voice note",
-                                tint = if (isRecording) Color(0xFFEF4444) else Color(0xFF9CA3AF),
+                                tint = if (isRecording) Color(0xFFEF4444) else (inputBarIconTint ?: Color(0xFF9CA3AF)),
                                 modifier = Modifier.size(20.dp),
                             )
                         }
@@ -511,8 +528,8 @@ fun ChattyChatScreen(
                 }
                 ChattySendButton(
                     style = state.theme?.sendButtonStyle,
-                    accent = accent,
-                    textColor = t.userBubbleText,
+                    accent = sendBtnBg,
+                    textColor = sendBtnText,
                     enabled = input.isNotBlank(),
                     onClick = {
                         if (input.isNotBlank()) {
@@ -525,10 +542,22 @@ fun ChattyChatScreen(
                 )
             }
         }
+
+        // "Powered by Chatty" — matches EmbedClient.tsx's own footer exactly:
+        // hidden when the bot owner has white-labeled (paid-plan hide_branding).
+        if (state.theme?.hideBranding != true) {
+            Text(
+                "Powered by Chatty",
+                color = t.headerText.copy(alpha = 0.45f),
+                fontSize = 9.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            )
+        }
     }
 }
 
-private fun chattyAvatarIconVector(avatarIcon: String?): ImageVector = when (avatarIcon) {
+internal fun chattyAvatarIconVector(avatarIcon: String?): ImageVector = when (avatarIcon) {
     "headset" -> Icons.Filled.SupportAgent
     "sparkles" -> Icons.Filled.AutoAwesome
     "message" -> Icons.Filled.ChatBubble
@@ -549,7 +578,12 @@ private fun HeaderIconButton(icon: ImageVector, description: String, tint: Color
 // load or show a spinner for — AndroidView inflates it synchronously and it
 // paints in the same frame the panel opens.
 @Composable
-private fun EmojiPicker(onPick: (String) -> Unit) {
+private fun EmojiPicker(borderColor: Color = Color(0xFFE5E7EB), onPick: (String) -> Unit) {
+    // Background stays white regardless of theme — EmojiPickerView is a system
+    // Android View with its own baked-in light styling, not themeable from
+    // Compose — but the border/shadow tint follows the active theme (same as
+    // the composer's own border) so the panel doesn't look like a foreign
+    // element dropped onto a differently-colored design.
     Box(
         Modifier
             .fillMaxWidth()
@@ -557,12 +591,19 @@ private fun EmojiPicker(onPick: (String) -> Unit) {
             .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp), ambientColor = Color(0x40000000), spotColor = Color(0x40000000))
             .clip(RoundedCornerShape(16.dp))
             .background(Color.White)
-            .border(1.dp, Color(0xFFE5E7EB), RoundedCornerShape(16.dp)),
+            .border(1.dp, borderColor, RoundedCornerShape(16.dp)),
     ) {
+        // EmojiPickerView has no content-padding attribute of its own (only
+        // emojiGridColumns/emojiGridRows) — without this padding its tab row and
+        // emoji grid touch the rounded border directly, with no breathing room
+        // at all between the system view's content and the Compose panel around it.
         AndroidView(
             factory = { context ->
+                val density = context.resources.displayMetrics.density
+                fun px(dp: Int) = (dp * density).toInt()
                 androidx.emoji2.emojipicker.EmojiPickerView(context).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    setPadding(px(8), px(8), px(8), px(4))
                     setOnEmojiPickedListener { onPick(it.emoji) }
                 }
             },
@@ -697,7 +738,7 @@ private fun ChattyRoundSendButton(icon: ImageVector, accent: Color, textColor: C
 }
 
 @Composable
-private fun Bubble(message: ChattyMessage, t: ChattyDesignTokens, avatarIcon: String?, avatarUrl: String?) {
+private fun Bubble(message: ChattyMessage, t: ChattyDesignTokens, avatarIcon: String?, avatarUrl: String?, showSenderTag: Boolean = false) {
     val isUser = message.role == ChattyRole.USER
     val radius = if (isUser) t.userBubbleRadius else t.botBubbleRadius
     BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -710,21 +751,35 @@ private fun Bubble(message: ChattyMessage, t: ChattyDesignTokens, avatarIcon: St
                 verticalAlignment = Alignment.Bottom,
             ) {
                 if (!isUser) BotAvatar(avatarIcon, avatarUrl, t)
-                Box(
-                    Modifier
-                        .clip(chattyBubbleShape(radius, isUser))
-                        .background(if (isUser) t.userBubbleBg else t.botBubbleBg)
-                        .padding(10.dp), // p-2.5 on web
-                ) {
-                    Column {
-                        message.fileUrl?.let {
-                            AsyncImage(model = it, contentDescription = null, modifier = Modifier.size(160.dp, 120.dp).clip(RoundedCornerShape(10.dp)))
-                        }
-                        if (message.text.isNotEmpty()) {
-                            if (isUser) {
-                                Text(message.text, color = t.userBubbleText, fontSize = 13.sp)
-                            } else {
-                                MarkdownText(message.text, color = t.botBubbleText, fontSize = 13.sp)
+                Column {
+                    // Matches EmbedClient.tsx's own tiny uppercase sender label exactly:
+                    // 9sp, semibold, tracked-out, shown only for assistant/agent messages.
+                    if (!isUser && showSenderTag) {
+                        Text(
+                            if (message.role == ChattyRole.AGENT) "HUMAN AGENT" else "AI",
+                            color = t.botBubbleText.copy(alpha = 0.5f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.6.sp,
+                            modifier = Modifier.padding(start = 2.dp, bottom = 2.dp),
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .clip(chattyBubbleShape(radius, isUser))
+                            .background(if (isUser) t.userBubbleBg else t.botBubbleBg)
+                            .padding(10.dp), // p-2.5 on web
+                    ) {
+                        Column {
+                            message.fileUrl?.let {
+                                AsyncImage(model = it, contentDescription = null, modifier = Modifier.size(160.dp, 120.dp).clip(RoundedCornerShape(10.dp)))
+                            }
+                            if (message.text.isNotEmpty()) {
+                                if (isUser) {
+                                    Text(message.text, color = t.userBubbleText, fontSize = 13.sp)
+                                } else {
+                                    MarkdownText(message.text, color = t.botBubbleText, fontSize = 13.sp)
+                                }
                             }
                         }
                     }
@@ -792,82 +847,6 @@ private fun Banner(text: String, bg: Color) {
     }
 }
 
-@Composable
-fun MarkdownText(text: String, modifier: Modifier = Modifier, color: Color = Color(0xFF111827), fontSize: TextUnit = 13.sp) {
-    val uriHandler = LocalUriHandler.current
-    val annotatedString = buildAnnotatedString {
-        val lines = text.split("\n")
-        lines.forEachIndexed { index, line ->
-            var currentLine = line
-            if (currentLine.startsWith("### ")) {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = fontSize * 1.2f, color = color)) {
-                    appendInlineMarkdown(currentLine.substring(4), color)
-                }
-            } else if (currentLine.startsWith("- ")) {
-                append("• ")
-                appendInlineMarkdown(currentLine.substring(2), color)
-            } else {
-                appendInlineMarkdown(currentLine, color)
-            }
-            if (index < lines.size - 1) append("\n")
-        }
-    }
-    ClickableText(
-        text = annotatedString,
-        modifier = modifier,
-        onClick = { offset ->
-            annotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                .firstOrNull()?.let { annotation ->
-                    uriHandler.openUri(annotation.item)
-                }
-        }
-    )
-}
-
-fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlineMarkdown(text: String, defaultColor: Color) {
-    val pattern = Regex("\\*\\*(.*?)\\*\\*|\\*(.*?)\\*|`(.*?)`|\\[(.*?)\\]\\((.*?)\\)")
-    var currentIndex = 0
-    pattern.findAll(text).forEach { matchResult ->
-        val startIndex = matchResult.range.first
-        val endIndex = matchResult.range.last + 1
-
-        if (startIndex > currentIndex) {
-            withStyle(SpanStyle(color = defaultColor)) {
-                append(text.substring(currentIndex, startIndex))
-            }
-        }
-
-        when {
-            matchResult.groups[1] != null -> { // **bold**
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = defaultColor)) {
-                    append(matchResult.groups[1]!!.value)
-                }
-            }
-            matchResult.groups[2] != null -> { // *italic*
-                withStyle(SpanStyle(fontStyle = FontStyle.Italic, color = defaultColor)) {
-                    append(matchResult.groups[2]!!.value)
-                }
-            }
-            matchResult.groups[3] != null -> { // `code`
-                withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = Color(0xFFE5E7EB), color = defaultColor)) {
-                    append(matchResult.groups[3]!!.value)
-                }
-            }
-            matchResult.groups[4] != null -> { // [text](url)
-                val linkText = matchResult.groups[4]!!.value
-                val url = matchResult.groups[5]!!.value
-                pushStringAnnotation(tag = "URL", annotation = url)
-                withStyle(SpanStyle(color = Color.Blue, textDecoration = TextDecoration.Underline)) {
-                    append(linkText)
-                }
-                pop()
-            }
-        }
-        currentIndex = endIndex
-    }
-    if (currentIndex < text.length) {
-        withStyle(SpanStyle(color = defaultColor)) {
-            append(text.substring(currentIndex))
-        }
-    }
-}
+// MarkdownText itself now lives in ChattyMarkdown.kt (real CommonMark/GFM
+// parsing + LaTeX rendering, replacing the old hand-rolled regex parser that
+// used to live here) — same package, so no import needed at Bubble's call site.

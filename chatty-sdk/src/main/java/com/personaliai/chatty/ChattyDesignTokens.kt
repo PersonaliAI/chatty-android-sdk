@@ -32,6 +32,13 @@ data class ChattyDesignTokens(
 
 private fun c(hex: String): Color = Color(android.graphics.Color.parseColor(hex))
 
+/** Safe hex parser for color_scheme overrides — a malformed/missing stored value should
+ * silently fall back to the design preset's own color, never crash the composable. */
+fun chattyParseColor(hex: String?): Color? {
+    if (hex.isNullOrBlank()) return null
+    return try { c(if (hex.startsWith("#")) hex else "#$hex") } catch (_: IllegalArgumentException) { null }
+}
+
 // gradient-glow's header/launcher is a linear-gradient(#a855f7, #ec4899) on
 // web; Brush.linearGradient is used directly at call sites for that one
 // design instead of trying to encode a gradient into a single Color.

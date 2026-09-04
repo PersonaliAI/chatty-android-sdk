@@ -34,7 +34,7 @@ composer with real Compose UI — fast, themeable, and indistinguishable from th
 ## Install
 
 > [!NOTE]
-> **Use `v1.1.0` or later.** `v1.0.0`–`v1.0.2` predate fixes that were needed for the SDK, the
+> **Use `v1.2.0` or later.** `v1.0.0`–`v1.0.2` predate fixes that were needed for the SDK, the
 > example app, and CI to actually build cleanly. Full history in the
 > [releases](https://github.com/PersonaliAI/chatty-android-sdk/releases) — every tag from
 > `v1.0.3` onward is CI-verified green before it ships.
@@ -55,7 +55,7 @@ dependencyResolutionManagement {
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.1.0")
+    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.2.0")
 }
 ```
 
@@ -208,11 +208,11 @@ fun ChattyChatScreen(
 | `modifier` | Standard Compose `Modifier` for sizing/placement. |
 | `onMessage` | Called for every inbound message — useful for unread badges or analytics. |
 | `onVoiceCallPress` | Header voice-call button tapped. Only shown when the bot's dashboard has voice enabled. See [Notes](#notes). |
-| `onNotificationBellPress` | Header notification-bell button tapped, after the OS permission prompt resolves. See [Notes](#notes). |
+| `onNotificationBellPress` | Header notification-bell button tapped (only shown once `POST_NOTIFICATIONS` is already granted). See [Notes](#notes). |
 | `onClose` | Renders a close (✕) button in the header when set. `ChattyLauncher` passes this for you; set it yourself only if you're embedding `ChattyChatScreen` directly inside your own dialog/sheet. |
-| `enableVoiceNotes` | Default `true`. Set `false` to hide the composer's mic button — the SDK then never requests `RECORD_AUDIO` at all. See [Permissions](#permissions). |
-| `enableNotificationBell` | Default `true`. Set `false` to hide the header's bell button — the SDK then never requests `POST_NOTIFICATIONS` at all. See [Permissions](#permissions). |
-| `enableLocationSharing` | Default `true`. Set `false` to hide the attach menu's Location option — the SDK then never requests `ACCESS_COARSE_LOCATION` at all. See [Permissions](#permissions). |
+| `enableVoiceNotes` | Default `true`. Gates the composer's mic button on `RECORD_AUDIO` already being granted — set `false` to hide it regardless of permission state. See [Permissions](#permissions). |
+| `enableNotificationBell` | Default `true`. Gates the header's bell button on `POST_NOTIFICATIONS` already being granted — set `false` to hide it regardless of permission state. See [Permissions](#permissions). |
+| `enableLocationSharing` | Default `true`. Gates the attach menu's Location option on `ACCESS_COARSE_LOCATION` already being granted — set `false` to hide it regardless of permission state. See [Permissions](#permissions). |
 
 ### Notes
 
@@ -226,18 +226,21 @@ which get merged into your app's manifest automatically by the Android Gradle Pl
 Photo Library/Documents aren't in this table — they need no permission at all (system camera
 intent, Storage Access Framework pickers):
 
-| Permission | Risk | Used for | Requested when |
+| Permission | Risk | Used for | Button shown when |
 |---|---|---|---|
-| `RECORD_AUDIO` | Dangerous | Composer mic button → voice-note transcription | User taps the mic button, only if `enableVoiceNotes` (default `true`) |
-| `POST_NOTIFICATIONS` | Runtime-gated (Android 13+) | Header bell button → local notification-permission ask | User taps the bell, only if `enableNotificationBell` (default `true`) |
-| `ACCESS_COARSE_LOCATION` | Dangerous | Attach menu's Location option → drops a Google Maps link into the composer text | User taps Location, only if `enableLocationSharing` (default `true`) |
+| `RECORD_AUDIO` | Dangerous | Composer mic button → voice-note transcription | Already granted, and `enableVoiceNotes` (default `true`) |
+| `POST_NOTIFICATIONS` | Runtime-gated (Android 13+) | Header bell button → `onNotificationBellPress` | Already granted (or pre-13, where it's implicit), and `enableNotificationBell` (default `true`) |
+| `ACCESS_COARSE_LOCATION` | Dangerous | Attach menu's Location option → drops a Google Maps link into the composer text | Already granted, and `enableLocationSharing` (default `true`) |
 
-The SDK **only ever calls the OS permission dialog in direct response to that specific button
-being tapped** — never on load, never speculatively. If you don't want your app requesting one of
-these at all, set the matching `enable*` param to `false`; the button disappears and the SDK will
-never touch that permission at runtime, regardless of what's declared in the manifest. Your app
-remains free to request `RECORD_AUDIO`/`POST_NOTIFICATIONS` itself, on its own schedule, for its
-own purposes (this SDK's opt-out only stops *this SDK* from requesting them).
+**This SDK never calls the OS permission dialog itself, for any of these three.** Each button/menu
+option above simply doesn't render until its permission is already granted — no silently-failing
+button, and no system dialog popping up from code your app doesn't own the timing of. Your app is
+responsible for actually requesting `RECORD_AUDIO`/`POST_NOTIFICATIONS`/`ACCESS_COARSE_LOCATION`
+(its own `rememberLauncherForActivityResult(RequestPermission())`, wherever and whenever fits your
+own onboarding/permission-priming flow); once granted, the corresponding button appears
+automatically (re-checked whenever the screen resumes — including right after your app's own
+permission dialog resolves). Set the matching `enable*` param to `false` if you don't want the
+button to ever appear, independent of permission state.
 
 If you also need the permission gone from your app's own merged manifest (e.g. for a Play Store
 Data Safety form, or a security review that flags any declared dangerous permission), add an
@@ -280,8 +283,10 @@ advisory only and isn't used for access control. If your bot is mobile-primary, 
 
 <br>
 
-Tapping it requests the OS notification permission (Android 13+ only — older versions grant it
-at install time) and then calls `onNotificationBellPress`. That's as far as this SDK goes.
+Only rendered once `POST_NOTIFICATIONS` is already granted (Android 13+ only — older versions
+grant it at install time, so the bell always shows there); tapping it just calls
+`onNotificationBellPress` — the SDK never requests the permission itself, see
+[Permissions](#permissions). That's as far as this SDK goes.
 Actually *delivering* a push when a reply arrives while the app is backgrounded needs a push
 provider wired up at the app level — either Firebase Cloud Messaging directly (free, no third
 party) or a wrapper like OneSignal (adds a dashboard/API for managing sends, at the cost of
@@ -342,12 +347,15 @@ Also add `<uses-permission android:name="android.permission.RECORD_AUDIO" />` to
 
 ## Example app
 
-[`example-app/`](example-app) is a minimal, runnable Compose app demonstrating both integration
-styles side by side — open it in Android Studio, hit run, and try the floating launcher and the
-embedded full-screen chat against a live demo bot.
+[`chatty-example-app/`](chatty-example-app) is a minimal, runnable Compose app demonstrating both
+integration styles side by side — open it in Android Studio, hit run, and try the floating
+launcher and the embedded full-screen chat against a live demo bot. It's its own Gradle root
+(built by Android Studio's project wizard, so it starts from current, known-compatible
+Gradle/AGP/JDK defaults) that pulls in `:chatty-sdk` as a sibling-directory source dependency —
+open `chatty-example-app/`, not the repo root, in Android Studio.
 
 ```bash
-./gradlew :example-app:installDebug
+cd chatty-example-app && ./gradlew :app:installDebug
 ```
 
 ## Requirements

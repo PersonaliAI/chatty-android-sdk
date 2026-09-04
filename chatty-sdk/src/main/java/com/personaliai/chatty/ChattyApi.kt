@@ -19,6 +19,53 @@ import kotlin.coroutines.suspendCoroutine
 
 const val CHATTY_DEFAULT_BASE_URL = "https://api.chatty.personaliai.com"
 
+/** One section's optional bg/text/icon hex overrides — mirrors SectionColorsInput
+ * in bots_api.py / WidgetColorScheme in chatty/src/lib/color-contrast.ts. */
+data class ChattySectionColors(
+    val bg: String? = null,
+    val text: String? = null,
+    val icon: String? = null,
+) {
+    companion object {
+        fun fromJson(json: JSONObject?): ChattySectionColors? {
+            if (json == null) return null
+            return ChattySectionColors(
+                bg = json.optString("bg", null),
+                text = json.optString("text", null),
+                icon = json.optString("icon", null),
+            )
+        }
+    }
+}
+
+/** Per-element color overrides set via the dashboard's widget customizer (or the MCP
+ * `customize_widget_styling` tool) — mirrors WidgetColorScheme in
+ * chatty/src/lib/color-contrast.ts and buildColorSchemeCss's !important rules exactly:
+ * when a section's bg+text are both set, it silently wins over the design preset's own
+ * colors, same as on web. */
+data class ChattyColorScheme(
+    val header: ChattySectionColors? = null,
+    val botBubble: ChattySectionColors? = null,
+    val userBubble: ChattySectionColors? = null,
+    val inputBar: ChattySectionColors? = null,
+    val sendBtn: ChattySectionColors? = null,
+    val launcher: ChattySectionColors? = null,
+) {
+    companion object {
+        fun fromJson(json: JSONObject?): ChattyColorScheme? {
+            if (json == null) return null
+            return ChattyColorScheme(
+                header = ChattySectionColors.fromJson(json.optJSONObject("header")),
+                botBubble = ChattySectionColors.fromJson(json.optJSONObject("botBubble")),
+                userBubble = ChattySectionColors.fromJson(json.optJSONObject("userBubble")),
+                inputBar = ChattySectionColors.fromJson(json.optJSONObject("inputBar")),
+                sendBtn = ChattySectionColors.fromJson(json.optJSONObject("sendBtn")),
+                launcher = ChattySectionColors.fromJson(json.optJSONObject("launcher")),
+            )
+        }
+    }
+}
+
 data class ChattyTheme(
     val name: String? = null,
     val primaryColor: String? = null,
@@ -31,6 +78,12 @@ data class ChattyTheme(
     val avatarIcon: String? = null,
     val avatarUrl: String? = null,
     val voiceEnabled: Boolean = false,
+    val colorScheme: ChattyColorScheme? = null,
+    /** Shows a small "AI"/"Human agent" label above assistant/agent bubbles —
+     * mirrors web's showSenderTag in EmbedClient.tsx. */
+    val showSenderTag: Boolean = false,
+    /** Paid-plan white-label flag; hides the "Powered by Chatty" footer when true. */
+    val hideBranding: Boolean = false,
 ) {
     companion object {
         fun fromJson(json: JSONObject): ChattyTheme {
@@ -50,6 +103,9 @@ data class ChattyTheme(
                 avatarIcon = json.optString("avatar_icon", null),
                 avatarUrl = json.optString("avatar_url", null),
                 voiceEnabled = json.optBoolean("voice_enabled", false),
+                colorScheme = ChattyColorScheme.fromJson(json.optJSONObject("color_scheme")),
+                showSenderTag = json.optBoolean("show_sender_tag", false),
+                hideBranding = json.optBoolean("hide_branding", false),
             )
         }
     }

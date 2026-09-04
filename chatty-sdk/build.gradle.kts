@@ -2,36 +2,37 @@ import java.time.Duration
 
 plugins {
     id("com.android.library")
-    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("com.vanniktech.maven.publish")
 }
 
 android {
     namespace = "com.personaliai.chatty"
-    compileSdk = 34
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 24
-        targetSdk = 34
+        // targetSdk on a library's defaultConfig no longer exists under
+        // AGP 9's new DSL (it only ever affected lint/test manifests for
+        // libraries) — consumers set their own app-level targetSdk.
         consumerProguardFiles("consumer-rules.pro")
     }
 
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
-    }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        // The Compose BOM's 2026-era libraries ship JVM-11 bytecode, which
+        // JVM target 1.8 can no longer inline against — 17 also matches
+        // AGP 9's own minimum/default JDK. minSdk stays 24 regardless;
+        // desugaring (below) is what makes newer APIs run on old devices,
+        // independent of this compiler target.
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
         // ChattyViewModel uses java.time.Instant (API 26+); desugaring
         // brings it down to this module's actual minSdk of 24.
         isCoreLibraryDesugaringEnabled = true
-    }
-    kotlinOptions {
-        jvmTarget = "1.8"
     }
 
     testOptions {
@@ -52,7 +53,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
 
-    implementation(platform("androidx.compose:compose-bom:2024.06.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.08.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
@@ -64,8 +65,26 @@ dependencies {
     // data, no network calls.
     implementation("androidx.emoji2:emoji2-emojipicker:1.6.0")
 
+    // Real CommonMark + GFM parsing (tables, strikethrough) for chat replies —
+    // replaces a hand-rolled regex mini-parser that only understood bold/
+    // italic/inline-code/links, matching web's remark-gfm feature set instead
+    // of a fraction of it. See ChattyMarkdown.kt.
+    implementation("org.commonmark:commonmark:0.24.0")
+    implementation("org.commonmark:commonmark-ext-gfm-tables:0.24.0")
+    implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.24.0")
+    // LaTeX equation rendering ($...$ / $$...$$), matching web's remark-math +
+    // rehype-katex. Renders real typeset math to a Drawable natively (no
+    // WebView) — same underlying approach Markwon's own ext-latex plugin uses.
+    implementation("ru.noties:jlatexmath-android:0.2.0")
+
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // ChattyEmbedScreen: WebViewCompat.addDocumentStartJavaScript, used to
+    // install the parent-window bridge shim before EmbedClient.tsx's own
+    // scripts run (plain WebViewClient.onPageStarted fires too late/racily
+    // for this — the page may already be mid-parse by then).
+    implementation("androidx.webkit:webkit:1.17.0")
 
     // compileOnly, not implementation: ChattyVoiceCallScreen is opt-in — only
     // an app that actually renders it needs LiveKit's (large, WebRTC-based)
@@ -119,11 +138,13 @@ mavenPublishing {
         (System.getenv("ORG_GRADLE_PROJECT_mavenCentralUsername") != null &&
             System.getenv("ORG_GRADLE_PROJECT_mavenCentralPassword") != null)
     if (hasSonatypeCredentials) {
-        publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
+        // 0.37.0 dropped the SonatypeHost parameter — the legacy OSSRH host
+        // is gone, so the Central Portal is the only (default) target now.
+        publishToMavenCentral()
         signAllPublications()
     }
 
-    coordinates("com.personaliai", "chatty-android-sdk", "1.1.0")
+    coordinates("com.personaliai", "chatty-android-sdk", "1.2.0")
 
     pom {
         name.set("Chatty Android SDK")

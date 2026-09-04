@@ -3,3 +3,7 @@ build/
 local.properties
 *.keystore
 *.jks
+hs_err_pid*.log
+replay_pid*.log
+.idea/
+.kotlin/

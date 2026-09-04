@@ -39,8 +39,14 @@ jobs:
       - name: Assemble chatty-sdk (debug + release)
         run: ./gradlew :chatty-sdk:assemble
 
-      - name: Assemble example-app
-        run: ./gradlew :example-app:assembleDebug
+      # chatty-example-app is its own Gradle root (pulls in :chatty-sdk as a
+      # sibling-directory source dependency) with its own wrapper — see
+      # chatty-example-app/settings.gradle.kts.
+      - name: Assemble chatty-example-app
+        working-directory: chatty-example-app
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug
 
       - name: Unit tests
         run: ./gradlew :chatty-sdk:testDebugUnitTest
