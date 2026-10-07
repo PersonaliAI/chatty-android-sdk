@@ -36,7 +36,6 @@ class ChattyApiModelsTest {
             put("teaser_message", "Need help?")
             put("avatar_icon", "robot")
             put("avatar_url", "https://example.com/avatar.png")
-            put("voice_enabled", true)
         }
 
         val theme = ChattyTheme.fromJson(json)
@@ -51,7 +50,6 @@ class ChattyApiModelsTest {
         assertEquals("Need help?", theme.teaserMessage)
         assertEquals("robot", theme.avatarIcon)
         assertEquals("https://example.com/avatar.png", theme.avatarUrl)
-        assertTrue(theme.voiceEnabled)
     }
 
     @Test
@@ -64,7 +62,6 @@ class ChattyApiModelsTest {
         assertNull(theme.logoUrl)
         assertNull(theme.welcomeMessage)
         assertTrue(theme.conversationStarters.isEmpty())
-        assertFalse(theme.voiceEnabled)
     }
 
     @Test

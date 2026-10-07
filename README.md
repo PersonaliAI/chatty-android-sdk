@@ -158,7 +158,6 @@ fun ChattyLauncher(
     host: String? = null,
     position: ChattyPosition = ChattyPosition.BOTTOM_END,
     color: Color? = null,
-    onVoiceCallPress: (() -> Unit)? = null,
     onNotificationBellPress: (() -> Unit)? = null,
     enableVoiceNotes: Boolean = true,
     enableNotificationBell: Boolean = true,
@@ -173,7 +172,6 @@ fun ChattyLauncher(
 | `host` | Advisory only — sent to the backend but not used for access control. See [Notes](#notes). |
 | `position` | Corner the bubble docks to. Default `BOTTOM_END`. |
 | `color` | Overrides the launcher color. Defaults to the active design's accent color. |
-| `onVoiceCallPress` | Forwarded to `ChattyChatScreen`'s header voice-call button. See [Notes](#notes). |
 | `onNotificationBellPress` | Forwarded to `ChattyChatScreen`'s header notification bell. See [Notes](#notes). |
 | `enableVoiceNotes` | Forwarded to `ChattyChatScreen`. See [Permissions](#permissions). |
 | `enableNotificationBell` | Forwarded to `ChattyChatScreen`. See [Permissions](#permissions). |
@@ -190,7 +188,6 @@ fun ChattyChatScreen(
     hostKey: String = "app",
     modifier: Modifier = Modifier,
     onMessage: ((ChattyMessage) -> Unit)? = null,
-    onVoiceCallPress: (() -> Unit)? = null,
     onNotificationBellPress: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
     enableVoiceNotes: Boolean = true,
@@ -207,7 +204,6 @@ fun ChattyChatScreen(
 | `hostKey` | Storage key used to namespace the locally persisted conversation. |
 | `modifier` | Standard Compose `Modifier` for sizing/placement. |
 | `onMessage` | Called for every inbound message — useful for unread badges or analytics. |
-| `onVoiceCallPress` | Header voice-call button tapped. Only shown when the bot's dashboard has voice enabled. See [Notes](#notes). |
 | `onNotificationBellPress` | Header notification-bell button tapped (only shown once `POST_NOTIFICATIONS` is already granted). See [Notes](#notes). |
 | `onClose` | Renders a close (✕) button in the header when set. `ChattyLauncher` passes this for you; set it yourself only if you're embedding `ChattyChatScreen` directly inside your own dialog/sheet. |
 | `enableVoiceNotes` | Default `true`. Gates the composer's mic button on `RECORD_AUDIO` already being granted — set `false` to hide it regardless of permission state. See [Permissions](#permissions). |
@@ -257,10 +253,6 @@ Do this only alongside the matching `enable*` param set to `false` (e.g. `enable
 false` for `RECORD_AUDIO`) — removing a manifest permission while still showing its button leaves
 a dead button whose permission request will always fail.
 
-The voice-call feature (`ChattyVoiceCallScreen`, opt-in, requires LiveKit) needs its own
-`RECORD_AUDIO` request — see [Voice-call button](#notes) below; it's independent of the composer
-mic button and isn't controlled by `enableVoiceNotes`.
-
 </details>
 
 <details open>
@@ -295,46 +287,6 @@ it to your own backend, store it against the session/user, and have your backend
 FCM/OneSignal's send API when a new assistant/agent message lands for a session that isn't
 actively polling. None of that exists yet — it's backend work in `chatty-backend`, not something
 this client SDK can add on its own.
-
-</details>
-
-<details>
-<summary><strong>Voice-call button</strong></summary>
-
-<br>
-
-Only shown when the bot's dashboard has voice enabled, and fires `onVoiceCallPress`. This SDK now
-ships a ready-to-render call screen, `ChattyVoiceCallScreen` — render it yourself from that
-callback (it's opt-in: only apps that use it need LiveKit's Android SDK pulled in):
-
-```kotlin
-// build.gradle.kts (your app module)
-dependencies {
-    implementation("io.livekit:livekit-android:2.18.2") // or newer
-}
-```
-
-```kotlin
-// Application.onCreate(), once:
-LiveKit.init(applicationContext)
-```
-
-```kotlin
-var showCall by remember { mutableStateOf(false) }
-if (showCall) {
-    ChattyVoiceCallScreen(
-        client = client,
-        sessionId = sessionId, // the same session id ChattyChatScreen/ChattyViewModel is using
-        widgetStyle = state.theme?.widgetStyle,
-        onClose = { showCall = false },
-    )
-} else {
-    ChattyChatScreen(state = state, onVoiceCallPress = { showCall = true }, /* ... */)
-}
-```
-
-Also add `<uses-permission android:name="android.permission.RECORD_AUDIO" />` to your
-`AndroidManifest.xml` and request it at runtime before the call screen is shown.
 
 </details>
 

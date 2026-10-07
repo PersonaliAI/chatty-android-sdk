@@ -19,10 +19,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // chatty-sdk's compileOnly io.livekit:livekit-android dependency
-        // transitively depends on com.github.davidliu:audioswitch, a
-        // JitPack-hosted commit-hash artifact, not a Maven Central release.
-        maven { url = uri("https://jitpack.io") }
     }
 }
 

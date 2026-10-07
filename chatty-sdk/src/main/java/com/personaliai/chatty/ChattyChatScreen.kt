@@ -80,7 +80,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import java.io.File
 
 /**
- * Full Chatty chat screen: header (with voice/notification/clear-chat actions),
+ * Full Chatty chat screen: header (with notification/clear-chat actions),
  * message list, conversation starters, typing indicator, and composer (emoji
  * picker, attach menu, mic recording). Equivalent to the web widget's embed
  * iframe content — sizing/spacing/structure below is ported 1:1 from
@@ -94,10 +94,6 @@ fun ChattyChatScreen(
     hostKey: String = "app",
     modifier: Modifier = Modifier,
     onMessage: ((ChattyMessage) -> Unit)? = null,
-    /** Called when the header's voice-call button is tapped (only shown when the bot's
-     * dashboard has voice enabled). This SDK doesn't bundle a voice-call implementation
-     * (that's a separate LiveKit integration) — wire this up if your app has one. */
-    onVoiceCallPress: (() -> Unit)? = null,
     /** Called when the header's notification-bell button is tapped (only shown once
      * POST_NOTIFICATIONS is already granted — see [enableNotificationBell]). Native apps
      * still need their own push infrastructure (FCM/APNs, or a wrapper like OneSignal) to
@@ -403,11 +399,8 @@ fun ChattyChatScreen(
                     Text("Online · replies instantly", color = t.headerText.copy(alpha = 0.7f), fontSize = 10.sp)
                 }
             }
-            // Header action buttons — voice call (if enabled), notification bell, clear chat, close.
+            // Header action buttons — notification bell, clear chat, close.
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (state.theme?.voiceEnabled == true) {
-                    HeaderIconButton(Icons.Filled.Call, "Voice call", t.headerText) { onVoiceCallPress?.invoke() }
-                }
                 // Only rendered once POST_NOTIFICATIONS is already granted — see
                 // enableNotificationBell's doc comment; the SDK never requests it itself.
                 if (enableNotificationBell && notificationsGranted) {

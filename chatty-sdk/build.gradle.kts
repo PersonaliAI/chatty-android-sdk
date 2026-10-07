@@ -86,14 +86,6 @@ dependencies {
     // for this — the page may already be mid-parse by then).
     implementation("androidx.webkit:webkit:1.17.0")
 
-    // compileOnly, not implementation: ChattyVoiceCallScreen is opt-in — only
-    // an app that actually renders it needs LiveKit's (large, WebRTC-based)
-    // Android SDK pulled in. compileOnly makes it resolvable for this
-    // module's own compilation without bundling it into the AAR or forcing
-    // it on every consumer; an app using voice calls must add
-    // implementation("io.livekit:livekit-android:...") itself.
-    compileOnly("io.livekit:livekit-android:2.18.2")
-
     // Test-only. JUnit4 for the runner; MockK for mocking Context/SharedPreferences;
     // kotlinx-coroutines-test for suspend fun tests; MockWebServer to exercise
     // ChattyClient's real OkHttp request/response path without hitting the network;
