@@ -19,6 +19,16 @@ composer with real Compose UI — fast, themeable, and indistinguishable from th
 
 </div>
 
+## LiveKit voice
+
+Call `ChattyClient(botId).createVoiceToken(sessionId)` and connect the returned
+token with the official LiveKit Android client. `ChattyEmbedScreen` already
+includes the complete widget voice UI and real-time transcript for hosts that
+prefer zero native LiveKit setup.
+
+For a standalone screen, use `ChattyVoiceScreen(botId = "…")`; it loads the
+same official LiveKit UI in voice-only mode.
+
 ---
 
 ## Why this SDK

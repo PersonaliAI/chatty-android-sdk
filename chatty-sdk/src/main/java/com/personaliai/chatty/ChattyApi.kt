@@ -83,6 +83,7 @@ data class ChattyTheme(
     val showSenderTag: Boolean = false,
     /** Paid-plan white-label flag; hides the "Powered by Chatty" footer when true. */
     val hideBranding: Boolean = false,
+    val voiceEnabled: Boolean = false,
 ) {
     companion object {
         fun fromJson(json: JSONObject): ChattyTheme {
@@ -104,8 +105,25 @@ data class ChattyTheme(
                 colorScheme = ChattyColorScheme.fromJson(json.optJSONObject("color_scheme")),
                 showSenderTag = json.optBoolean("show_sender_tag", false),
                 hideBranding = json.optBoolean("hide_branding", false),
+                voiceEnabled = json.optBoolean("voice_enabled", false),
             )
         }
+    }
+}
+
+data class ChattyVoiceToken(
+    val serverUrl: String,
+    val participantToken: String,
+    val roomName: String,
+    val participantName: String,
+) {
+    companion object {
+        fun fromJson(json: JSONObject) = ChattyVoiceToken(
+            serverUrl = json.optString("serverUrl"),
+            participantToken = json.optString("participantToken"),
+            roomName = json.optString("roomName"),
+            participantName = json.optString("participantName"),
+        )
     }
 }
 
@@ -230,6 +248,18 @@ class ChattyClient(
             .build()
         val req = Request.Builder().url("$baseUrl/api/widget/transcribe").post(multipart).build()
         return execute(req).optString("text", "")
+    }
+
+    /** Creates a short-lived LiveKit participant token for the official
+     * LiveKit Android client. API keys and provider credentials stay server-side. */
+    suspend fun createVoiceToken(sessionId: String, participantName: String = "Visitor"): ChattyVoiceToken {
+        val body = JSONObject().apply {
+            put("bot_id", botId)
+            put("session_id", sessionId)
+            put("participant_name", participantName)
+        }.toString().toRequestBody("application/json".toMediaType())
+        val req = Request.Builder().url("$baseUrl/api/widget/voice/token").post(body).build()
+        return ChattyVoiceToken.fromJson(execute(req))
     }
 
     suspend fun sendMessageStream(

@@ -110,6 +110,7 @@ fun ChattyEmbedScreen(
     botId: String,
     modifier: Modifier = Modifier,
     baseUrl: String = CHATTY_DEFAULT_EMBED_BASE_URL,
+    voiceOnly: Boolean = false,
     onReady: (() -> Unit)? = null,
     onMessage: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
@@ -124,7 +125,9 @@ fun ChattyEmbedScreen(
     visible: Boolean = true,
 ) {
     val context = LocalContext.current
-    val embedUrl = remember(baseUrl, botId) { "${baseUrl.trimEnd('/')}/embed/$botId" }
+    val embedUrl = remember(baseUrl, botId, voiceOnly) {
+        "${baseUrl.trimEnd('/')}/embed/$botId" + if (voiceOnly) "?voice=only" else ""
+    }
     val embedHost = remember(embedUrl) { Uri.parse(embedUrl).host }
 
     var pageReady by remember { mutableStateOf(false) }
@@ -460,4 +463,23 @@ private fun OfflineOrErrorState(title: String, body: String?, bg: androidx.compo
             Button(onClick = onRetry) { Text("Retry") }
         }
     }
+}
+
+/** Standalone LiveKit voice-agent surface using the official Chatty web UI. */
+@Composable
+fun ChattyVoiceScreen(
+    botId: String,
+    modifier: Modifier = Modifier,
+    baseUrl: String = CHATTY_DEFAULT_EMBED_BASE_URL,
+    onReady: (() -> Unit)? = null,
+    onClose: (() -> Unit)? = null,
+) {
+    ChattyEmbedScreen(
+        botId = botId,
+        modifier = modifier,
+        baseUrl = baseUrl,
+        voiceOnly = true,
+        onReady = onReady,
+        onClose = onClose,
+    )
 }
