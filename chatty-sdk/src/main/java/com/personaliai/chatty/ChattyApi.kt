@@ -252,11 +252,12 @@ class ChattyClient(
 
     /** Creates a short-lived LiveKit participant token for the official
      * LiveKit Android client. API keys and provider credentials stay server-side. */
-    suspend fun createVoiceToken(sessionId: String, participantName: String = "Visitor"): ChattyVoiceToken {
+    suspend fun createVoiceToken(sessionId: String, participantName: String = "Visitor", visitorTimezone: String = "UTC"): ChattyVoiceToken {
         val body = JSONObject().apply {
             put("bot_id", botId)
             put("session_id", sessionId)
             put("participant_name", participantName)
+            put("visitor_timezone", visitorTimezone)
         }.toString().toRequestBody("application/json".toMediaType())
         val req = Request.Builder().url("$baseUrl/api/widget/voice/token").post(body).build()
         return ChattyVoiceToken.fromJson(execute(req))
