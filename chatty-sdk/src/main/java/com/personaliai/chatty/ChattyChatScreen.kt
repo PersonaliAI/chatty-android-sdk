@@ -827,7 +827,7 @@ private fun FlowStarters(starters: List<String>, accent: Color, onClick: (String
                 border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.35f)),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = accent),
             ) {
-                Text(s, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2)
+                Text(s, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 260.dp))
             }
         }
     }
