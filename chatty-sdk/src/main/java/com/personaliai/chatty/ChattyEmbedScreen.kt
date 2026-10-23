@@ -126,7 +126,10 @@ fun ChattyEmbedScreen(
 ) {
     val context = LocalContext.current
     val embedUrl = remember(baseUrl, botId, voiceOnly) {
-        "${baseUrl.trimEnd('/')}/embed/$botId" + if (voiceOnly) "?voice=only" else ""
+        val base = baseUrl.trimEnd('/')
+        val params = mutableListOf("platform=android", "safeArea=true")
+        if (voiceOnly) params.add("voice=only")
+        "$base/embed/$botId?" + params.joinToString("&")
     }
     val embedHost = remember(embedUrl) { Uri.parse(embedUrl).host }
 
